@@ -1,18 +1,18 @@
 @props([
     'label',
     'value',
-    'icon' => 'cil-speedometer',
+    'icon' => 'ti ti-dashboard',
     'tone' => 'primary',
 ])
 
-<div class="card border-0 shadow-sm h-100">
+<div class="card h-100">
     <div class="card-body d-flex align-items-center gap-3">
-        <div class="bg-{{ $tone }} bg-opacity-10 text-{{ $tone }} rounded-3 d-flex align-items-center justify-content-center" style="width: 3rem; height: 3rem;">
+        <span class="avatar bg-{{ $tone }}-lt text-{{ $tone }}">
             <i class="{{ $icon }} fs-4"></i>
-        </div>
+        </span>
         <div>
-            <div class="text-body-secondary small">{{ $label }}</div>
-            <div class="fs-3 fw-semibold lh-1">{{ $value }}</div>
+            <div class="text-muted small">{{ $label }}</div>
+            <div class="h2 mb-0">{{ $value }}</div>
         </div>
     </div>
 </div>

@@ -1,12 +1,12 @@
-@import "@coreui/coreui/dist/css/coreui.min.css";
-@import "@coreui/icons/css/free.min.css";
+@import "@tabler/core/dist/css/tabler.min.css";
+@import "@tabler/icons-webfont/dist/tabler-icons.min.css";
 
 :root {
     --app-sidebar-width: 16rem;
 }
 
 body {
-    background: var(--cui-tertiary-bg);
+    background: var(--tblr-bg-surface-secondary);
 }
 
 .app-shell {
@@ -14,9 +14,8 @@ body {
 }
 
 .app-sidebar {
-    --cui-sidebar-width: var(--app-sidebar-width);
-
     width: var(--app-sidebar-width);
+    border-right: 1px solid rgba(var(--tblr-light-rgb), .08);
 }
 
 .app-wrapper {
@@ -29,20 +28,101 @@ body {
     min-height: calc(100vh - 4rem);
 }
 
-.sidebar-brand {
-    min-height: 4rem;
+.app-navbar {
+    position: relative;
+    z-index: 1040;
 }
 
-.nav-icon {
-    width: 1.25rem;
+.app-navbar .dropdown-menu {
+    min-width: 13rem;
 }
 
 .table-card .table {
     margin-bottom: 0;
 }
 
+.stock-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(10rem, 1fr)) auto auto;
+    gap: .75rem;
+    align-items: end;
+    margin-bottom: 1rem;
+}
+
+.stock-filter-toggle {
+    min-height: 2rem;
+    align-items: center;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.stock-filter-bar .ts-wrapper.single .ts-control {
+    min-height: calc(1.5em + .5rem + 2px);
+    padding-block: .25rem;
+    font-size: .875rem;
+    line-height: 1.5;
+}
+
+.stock-filter-bar .ts-dropdown {
+    font-size: .875rem;
+}
+
+.ts-dropdown {
+    z-index: 1085 !important;
+    border: 1px solid var(--tblr-border-color) !important;
+    background: var(--tblr-bg-surface, #fff) !important;
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .18) !important;
+    opacity: 1 !important;
+}
+
+.ts-dropdown-content {
+    background: var(--tblr-bg-surface, #fff) !important;
+}
+
+.ts-dropdown .option,
+.ts-dropdown .no-results {
+    background: var(--tblr-bg-surface, #fff) !important;
+    color: var(--tblr-body-color, #1f2328) !important;
+}
+
+.ts-dropdown .active {
+    background: rgba(var(--tblr-primary-rgb), .1) !important;
+    color: var(--tblr-primary, #206bc4) !important;
+}
+
+.ts-control,
+.ts-wrapper.single .ts-control {
+    background: var(--tblr-bg-forms, #fff) !important;
+}
+
 .form-panel {
     max-width: 980px;
+}
+
+.purchase-form {
+    max-width: 1320px;
+}
+
+.purchase-items-table {
+    min-width: 980px;
+}
+
+.purchase-product-cell {
+    min-width: 18rem;
+}
+
+.purchase-presentation-cell {
+    min-width: 12rem;
+}
+
+.purchase-unit-calc {
+    min-width: 9rem;
+    white-space: nowrap;
+}
+
+.purchase-summary {
+    max-width: 28rem;
+    margin-left: auto;
 }
 
 [wire\:loading] {
@@ -50,39 +130,72 @@ body {
 }
 
 @media (min-width: 992px) {
+    .app-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 1030;
+    }
+
     .app-wrapper {
         margin-left: var(--app-sidebar-width);
         width: calc(100% - var(--app-sidebar-width));
-    }
-
-    body.sidebar-collapsed .app-sidebar {
-        margin-left: calc(var(--app-sidebar-width) * -1);
-    }
-
-    body.sidebar-collapsed .app-wrapper {
-        margin-left: 0;
-        width: 100%;
     }
 }
 
 @media (max-width: 991.98px) {
     .app-sidebar {
-        margin-left: calc(var(--app-sidebar-width) * -1);
+        width: 100%;
     }
 
-    body.sidebar-mobile-open .app-sidebar {
-        margin-left: 0;
+    .stock-filter-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+}
 
-    body.sidebar-mobile-open::after {
-        position: fixed;
-        inset: 0;
-        z-index: 1029;
-        content: "";
-        background: rgba(0, 0, 0, .35);
+@media (max-width: 575.98px) {
+    .stock-filter-bar {
+        grid-template-columns: 1fr;
     }
+}
 
-    body.sidebar-mobile-open .app-sidebar {
-        z-index: 1030;
-    }
+.app-sidebar .navbar-brand {
+    min-height: 4rem;
+    padding-inline: 1rem;
+    border-bottom: 1px solid rgba(var(--tblr-light-rgb), .08);
+}
+
+.app-sidebar .navbar-nav {
+    gap: .125rem;
+    padding-inline: .75rem;
+}
+
+.app-sidebar .nav-link {
+    border-radius: var(--tblr-border-radius);
+}
+
+.app-sidebar .nav-link-icon {
+    color: var(--tblr-secondary);
+}
+
+.app-sidebar .nav-item.active > .nav-link {
+    background: rgba(var(--tblr-primary-rgb), .16);
+    color: var(--tblr-primary);
+}
+
+.app-sidebar .nav-item.active > .nav-link .nav-link-icon {
+    color: var(--tblr-primary);
+}
+
+.app-sidebar .app-menu-label {
+    margin-top: 1rem;
+}
+
+.app-sidebar .app-menu-label .nav-link {
+    min-height: 1.75rem;
+    padding-block: .25rem;
+    color: var(--tblr-secondary);
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: uppercase;
 }

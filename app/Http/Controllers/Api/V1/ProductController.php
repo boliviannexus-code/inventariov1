@@ -37,7 +37,7 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        return $this->successResponse(ProductResource::make($product->load('category')));
+        return $this->successResponse(ProductResource::make($product->load(['category', 'measurementUnit'])));
     }
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse

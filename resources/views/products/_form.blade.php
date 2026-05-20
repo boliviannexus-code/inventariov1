@@ -1,14 +1,14 @@
 <div class="row g-3">
     <div class="col-md-8">
         <label class="form-label" for="name">Nombre</label>
-        <input class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $product->name ?? '') }}" required>
+        <input class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $product->name ?? '') }}" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" required>
         @error('name')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
     <div class="col-md-4">
         <label class="form-label" for="barcode">Codigo de barras</label>
-        <input class="form-control @error('barcode') is-invalid @enderror" id="barcode" name="barcode" value="{{ old('barcode', $product->barcode ?? '') }}">
+        <input class="form-control @error('barcode') is-invalid @enderror" id="barcode" name="barcode" value="{{ old('barcode', $product->barcode ?? '') }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
         @error('barcode')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
@@ -27,30 +27,44 @@
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
+    <div class="col-md-6">
+        <label class="form-label" for="measurement_unit_id">Unidad de medida</label>
+        <select class="form-select @error('measurement_unit_id') is-invalid @enderror" id="measurement_unit_id" name="measurement_unit_id" data-tom-select data-placeholder="Seleccionar" required>
+            <option value="">Seleccionar</option>
+            @foreach ($measurementUnits as $unit)
+                <option value="{{ $unit->id }}" @selected((int) old('measurement_unit_id', $product->measurement_unit_id ?? 0) === $unit->id)>
+                    {{ $unit->name }} ({{ $unit->abbreviation }})
+                </option>
+            @endforeach
+        </select>
+        @error('measurement_unit_id')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+    </div>
     <div class="col-md-3">
         <label class="form-label" for="purchase_price">Precio compra</label>
-        <input class="form-control @error('purchase_price') is-invalid @enderror" id="purchase_price" name="purchase_price" type="number" step="0.01" min="0" value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" required>
+        <input class="form-control @error('purchase_price') is-invalid @enderror" id="purchase_price" name="purchase_price" type="number" step="0.01" min="0" value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         @error('purchase_price')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
     <div class="col-md-3">
         <label class="form-label" for="sale_price">Precio venta</label>
-        <input class="form-control @error('sale_price') is-invalid @enderror" id="sale_price" name="sale_price" type="number" step="0.01" min="0" value="{{ old('sale_price', $product->sale_price ?? 0) }}" required>
+        <input class="form-control @error('sale_price') is-invalid @enderror" id="sale_price" name="sale_price" type="number" step="0.01" min="0" value="{{ old('sale_price', $product->sale_price ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         @error('sale_price')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
     <div class="col-md-3">
         <label class="form-label" for="minimum_stock">Stock minimo</label>
-        <input class="form-control @error('minimum_stock') is-invalid @enderror" id="minimum_stock" name="minimum_stock" type="number" min="0" value="{{ old('minimum_stock', $product->minimum_stock ?? 0) }}" required>
+        <input class="form-control @error('minimum_stock') is-invalid @enderror" id="minimum_stock" name="minimum_stock" type="number" min="0" value="{{ old('minimum_stock', $product->minimum_stock ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         @error('minimum_stock')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
     <div class="col-md-9">
         <label class="form-label" for="description">Descripcion</label>
-        <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3">{{ old('description', $product->description ?? '') }}</textarea>
+        <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" autocomplete="off" data-lpignore="true" data-1p-ignore="true">{{ old('description', $product->description ?? '') }}</textarea>
         @error('description')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror

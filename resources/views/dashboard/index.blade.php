@@ -7,16 +7,16 @@
 @section('content')
     <div class="row g-3">
         <div class="col-md-3">
-            <x-ui.stat-card label="Productos" :value="$totalProducts" icon="cil-tags" tone="primary" />
+            <x-ui.stat-card label="Productos" :value="$totalProducts" icon="ti ti-package" tone="primary" />
         </div>
         <div class="col-md-3">
-            <x-ui.stat-card label="Productos activos" :value="$activeProducts" icon="cil-check-circle" tone="success" />
+            <x-ui.stat-card label="Productos activos" :value="$activeProducts" icon="ti ti-circle-check" tone="success" />
         </div>
         <div class="col-md-3">
-            <x-ui.stat-card label="Categorias" :value="$totalCategories" icon="cil-folder" tone="info" />
+            <x-ui.stat-card label="Categorias" :value="$totalCategories" icon="ti ti-category" tone="info" />
         </div>
         <div class="col-md-3">
-            <x-ui.stat-card label="Categorias activas" :value="$activeCategories" icon="cil-check-alt" tone="warning" />
+            <x-ui.stat-card label="Categorias activas" :value="$activeCategories" icon="ti ti-checks" tone="warning" />
         </div>
     </div>
 

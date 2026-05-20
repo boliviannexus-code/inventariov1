@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Repositories\ProductRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 
 class ProductService
@@ -16,6 +17,11 @@ class ProductService
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return $this->products->paginate($perPage);
+    }
+
+    public function active(): Collection
+    {
+        return $this->products->active();
     }
 
     public function create(array $data): Product

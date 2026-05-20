@@ -3,9 +3,9 @@
     'method' => 'POST',
 ])
 
-<div class="card border-0 shadow-sm form-panel">
+<div class="card form-panel">
     <div class="card-body">
-        <form method="POST" action="{{ $action }}" novalidate>
+        <form method="POST" action="{{ $action }}" autocomplete="off" novalidate>
             @csrf
             @if (! in_array(strtoupper($method), ['GET', 'POST'], true))
                 @method($method)

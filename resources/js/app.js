@@ -1,12 +1,18 @@
-import * as coreui from '@coreui/coreui';
+import * as bootstrap from 'bootstrap';
 import Swal from 'sweetalert2';
+import DataTable from 'datatables.net-bs5';
+import TomSelect from 'tom-select';
+import 'datatables.net-responsive-bs5';
+import 'datatables.net-bs5/css/dataTables.bootstrap5.min.css';
+import 'datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import 'tom-select/dist/css/tom-select.bootstrap5.min.css';
 
 window.Swal = Swal;
 
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 const ajaxModalElement = document.getElementById('ajaxModal');
-const ajaxModal = ajaxModalElement ? new coreui.Modal(ajaxModalElement) : null;
+const ajaxModal = ajaxModalElement ? new bootstrap.Modal(ajaxModalElement) : null;
 const ajaxModalTitle = document.getElementById('ajaxModalTitle');
 const ajaxModalBody = ajaxModalElement?.querySelector('[data-modal-body]');
 
@@ -17,27 +23,6 @@ const toast = Swal.mixin({
     timer: 2600,
     timerProgressBar: true,
 });
-
-function isDesktop() {
-    return window.matchMedia('(min-width: 992px)').matches;
-}
-
-function toggleSidebar() {
-    if (isDesktop()) {
-        document.body.classList.toggle('sidebar-collapsed');
-        localStorage.setItem('adminSidebarCollapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
-
-        return;
-    }
-
-    document.body.classList.toggle('sidebar-mobile-open');
-}
-
-function applyStoredSidebarState() {
-    if (isDesktop() && localStorage.getItem('adminSidebarCollapsed') === '1') {
-        document.body.classList.add('sidebar-collapsed');
-    }
-}
 
 function showInitialAlerts() {
     const success = document.querySelector('[data-swal-success]')?.dataset.swalSuccess;
@@ -81,11 +66,30 @@ function openAjaxModal(trigger) {
     fetchHtml(trigger.dataset.modalUrl ?? trigger.href)
         .then((html) => {
             ajaxModalBody.innerHTML = html;
+            disableBusinessFormAutocomplete(ajaxModalBody);
+            initTomSelects(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
             Swal.fire({ icon: 'error', title: 'Error', text: error.message });
         });
+}
+
+function disableBusinessFormAutocomplete(scope = document) {
+    scope.querySelectorAll('form[data-ajax-form], .form-panel form').forEach((form) => {
+        form.setAttribute('autocomplete', 'off');
+    });
+
+    scope.querySelectorAll('form[data-ajax-form] input, form[data-ajax-form] textarea, .form-panel input, .form-panel textarea').forEach((field) => {
+        if (['hidden', 'checkbox', 'radio', 'submit', 'button'].includes(field.type)) {
+            return;
+        }
+
+        const shouldUsePasswordToken = field.name === 'name' || field.id.endsWith('-name');
+        field.setAttribute('autocomplete', shouldUsePasswordToken ? 'new-password' : 'off');
+        field.setAttribute('data-lpignore', 'true');
+        field.setAttribute('data-1p-ignore', 'true');
+    });
 }
 
 function clearFormErrors(form) {
@@ -132,6 +136,8 @@ async function refreshContainer(url) {
 
     if (fresh) {
         current.replaceWith(fresh);
+        initTomSelects(fresh);
+        initAdminDataTables();
     }
 }
 
@@ -189,33 +195,273 @@ function confirmDelete(form) {
     });
 }
 
-applyStoredSidebarState();
-showInitialAlerts();
+function initAdminDataTables() {
+    document.querySelectorAll('[data-datatable]').forEach((table) => {
+        if (table.dataset.datatableInitialized === '1') {
+            return;
+        }
 
-document.addEventListener('click', (event) => {
-    const sidebarToggle = event.target.closest('[data-admin-sidebar-toggle]');
-    const modalTrigger = event.target.closest('[data-modal-url]');
+        const columnsElement = document.getElementById(table.dataset.columnsId ?? '');
+        const columns = JSON.parse(columnsElement?.textContent ?? table.dataset.columns ?? '[]');
+        const filtersForm = table.dataset.filtersForm ? document.querySelector(table.dataset.filtersForm) : null;
 
-    if (sidebarToggle) {
-        event.preventDefault();
-        toggleSidebar();
+        const dataTable = new DataTable(table, {
+            ajax: {
+                url: table.dataset.url,
+                data(data) {
+                    if (!filtersForm) {
+                        return;
+                    }
 
+                    new FormData(filtersForm).forEach((value, key) => {
+                        data[key] = value;
+                    });
+                },
+            },
+            columns,
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            pageLength: Number(table.dataset.pageLength ?? 10),
+            order: JSON.parse(table.dataset.order ?? '[[0,"desc"]]'),
+            language: {
+                search: 'Buscar:',
+                lengthMenu: 'Mostrar _MENU_ registros',
+                info: 'Mostrando _START_ a _END_ de _TOTAL_ registros',
+                infoEmpty: 'Sin registros',
+                infoFiltered: '(filtrado de _MAX_ registros)',
+                loadingRecords: 'Cargando...',
+                processing: 'Procesando...',
+                zeroRecords: 'No se encontraron registros',
+                emptyTable: 'No hay datos disponibles',
+                paginate: {
+                    first: 'Primero',
+                    previous: 'Anterior',
+                    next: 'Siguiente',
+                    last: 'Ultimo',
+                },
+            },
+        });
+
+        if (filtersForm) {
+            let reloadTimeout;
+            const reloadTable = () => {
+                window.clearTimeout(reloadTimeout);
+                reloadTimeout = window.setTimeout(() => dataTable.ajax.reload(), 180);
+            };
+
+            filtersForm.addEventListener('change', reloadTable);
+            filtersForm.addEventListener('reset', () => {
+                window.setTimeout(() => {
+                    filtersForm.querySelectorAll('select[data-tom-select]').forEach((select) => {
+                        select.tomselect?.clear(true);
+                    });
+                    dataTable.ajax.reload();
+                }, 0);
+            });
+        }
+
+        dataTable.on('xhr.dt', (_event, _settings, json, xhr) => {
+            if (xhr.status === 401 || xhr.status === 403 || xhr.responseURL?.includes('/login')) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Sin acceso',
+                    text: 'No tienes permisos para cargar los datos de esta tabla o tu sesion expiro.',
+                });
+            }
+        });
+        table.dataset.datatableInitialized = '1';
+    });
+}
+
+function initTomSelects(scope = document) {
+    scope.querySelectorAll('select[data-tom-select]').forEach((select) => {
+        if (select.tomselect) {
+            return;
+        }
+
+        new TomSelect(select, {
+            allowEmptyOption: true,
+            create: false,
+            dropdownParent: 'body',
+            maxItems: 1,
+            placeholder: select.dataset.placeholder ?? 'Seleccionar',
+            plugins: ['clear_button'],
+            render: {
+                no_results() {
+                    return '<div class="no-results">Sin resultados</div>';
+                },
+            },
+        });
+    });
+}
+
+function selectedOption(select) {
+    return select?.selectedOptions?.[0] ?? null;
+}
+
+function rowNumberValue(row, selector) {
+    return Number(row.querySelector(selector)?.value || 0);
+}
+
+function updatePurchaseRow(row) {
+    const product = row.querySelector('[data-purchase-product]');
+    const presentation = row.querySelector('[data-purchase-presentation]');
+    const unitPrice = row.querySelector('[data-unit-price]');
+    const quantity = Math.max(0, rowNumberValue(row, '[data-package-quantity]'));
+    let price = Math.max(0, rowNumberValue(row, '[data-unit-price]'));
+    const productOption = selectedOption(product);
+    const presentationOption = selectedOption(presentation);
+    const unitsPerPackage = Number(presentationOption?.dataset.units || 0);
+    const unitLabel = productOption?.dataset.unit || 'u.';
+    const totalUnits = quantity * unitsPerPackage;
+
+    if (unitPrice && !unitPrice.value && productOption?.dataset.price) {
+        unitPrice.value = Number(productOption.dataset.price).toFixed(2);
+        price = Math.max(0, rowNumberValue(row, '[data-unit-price]'));
+    }
+
+    row.querySelector('[data-unit-calculation]').textContent = unitsPerPackage > 0
+        ? `${quantity} x ${unitsPerPackage} = ${totalUnits} ${unitLabel}`
+        : `0 ${unitLabel}`;
+    row.querySelector('[data-line-subtotal]').textContent = (quantity * price).toFixed(2);
+}
+
+function updatePurchaseTotals(form) {
+    let subtotal = 0;
+
+    form.querySelectorAll('[data-purchase-item-row]').forEach((row) => {
+        updatePurchaseRow(row);
+        subtotal += Math.max(0, rowNumberValue(row, '[data-package-quantity]')) * Math.max(0, rowNumberValue(row, '[data-unit-price]'));
+    });
+
+    form.querySelector('[data-purchase-subtotal]').textContent = subtotal.toFixed(2);
+    form.querySelector('[data-purchase-total]').textContent = subtotal.toFixed(2);
+}
+
+function refreshPurchaseReference(form) {
+    const warehouse = form.querySelector('[name="warehouse_id"]');
+    const preview = form.querySelector('[data-reference-preview]');
+    const previews = JSON.parse(form.dataset.referencePreviews || '{}');
+
+    if (!preview) {
         return;
     }
+
+    preview.value = previews[warehouse?.value] || 'Se generara al seleccionar almacen';
+}
+
+function clearPurchaseRow(row) {
+    row.querySelectorAll('select').forEach((select) => select.tomselect?.clear());
+    row.querySelectorAll('input').forEach((input) => {
+        input.value = input.matches('[data-package-quantity]') ? '1' : '';
+    });
+}
+
+function initPurchaseForm() {
+    document.querySelectorAll('[data-purchase-form]').forEach((form) => {
+        if (form.dataset.purchaseInitialized === '1') {
+            return;
+        }
+
+        const items = form.querySelector('[data-purchase-items]');
+        const template = form.querySelector('[data-purchase-item-template]') ?? document.querySelector('[data-purchase-item-template]');
+        form.dataset.purchaseItemIndex = String(items?.querySelectorAll('[data-purchase-item-row]').length || 0);
+
+        form.addEventListener('change', (event) => {
+            if (event.target.closest('[name="warehouse_id"]')) {
+                refreshPurchaseReference(form);
+            }
+
+            if (event.target.closest('[data-purchase-product], [data-purchase-presentation], [data-package-quantity], [data-unit-price]')) {
+                updatePurchaseTotals(form);
+            }
+        });
+
+        form.addEventListener('input', (event) => {
+            if (event.target.closest('[data-package-quantity], [data-unit-price]')) {
+                updatePurchaseTotals(form);
+            }
+        });
+
+        form.querySelector('[data-add-purchase-item]')?.addEventListener('click', () => {
+            if (!items || !template) {
+                return;
+            }
+
+            const index = Number(form.dataset.purchaseItemIndex || 0);
+            const wrapper = document.createElement('tbody');
+            wrapper.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(index)).trim();
+            const row = wrapper.firstElementChild;
+
+            items.append(row);
+            form.dataset.purchaseItemIndex = String(index + 1);
+            initTomSelects(row);
+            updatePurchaseTotals(form);
+        });
+
+        form.addEventListener('click', (event) => {
+            const remove = event.target.closest('[data-remove-purchase-item]');
+
+            if (!remove) {
+                return;
+            }
+
+            const row = remove.closest('[data-purchase-item-row]');
+            const rows = items?.querySelectorAll('[data-purchase-item-row]') ?? [];
+
+            if (rows.length <= 1) {
+                clearPurchaseRow(row);
+            } else {
+                row.remove();
+            }
+
+            updatePurchaseTotals(form);
+        });
+
+        refreshPurchaseReference(form);
+        updatePurchaseTotals(form);
+        form.dataset.purchaseInitialized = '1';
+    });
+}
+
+function initUserDropdowns() {
+    document.querySelectorAll('[data-user-dropdown-toggle]').forEach((toggle) => {
+        if (toggle.dataset.dropdownInitialized === '1') {
+            return;
+        }
+
+        const dropdown = bootstrap.Dropdown.getOrCreateInstance(toggle, {
+            autoClose: true,
+            popperConfig: {
+                strategy: 'fixed',
+            },
+        });
+
+        toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            dropdown.toggle();
+        });
+
+        toggle.dataset.dropdownInitialized = '1';
+    });
+}
+
+showInitialAlerts();
+disableBusinessFormAutocomplete();
+initTomSelects();
+initPurchaseForm();
+initUserDropdowns();
+initAdminDataTables();
+
+document.addEventListener('click', (event) => {
+    const modalTrigger = event.target.closest('[data-modal-url]');
 
     if (modalTrigger) {
         event.preventDefault();
         openAjaxModal(modalTrigger);
 
         return;
-    }
-
-    if (
-        document.body.classList.contains('sidebar-mobile-open')
-        && !event.target.closest('#adminSidebar')
-        && !event.target.closest('[data-admin-sidebar-toggle]')
-    ) {
-        document.body.classList.remove('sidebar-mobile-open');
     }
 });
 
@@ -233,11 +479,5 @@ document.addEventListener('submit', (event) => {
     if (deleteForm) {
         event.preventDefault();
         confirmDelete(deleteForm);
-    }
-});
-
-window.addEventListener('resize', () => {
-    if (isDesktop()) {
-        document.body.classList.remove('sidebar-mobile-open');
     }
 });

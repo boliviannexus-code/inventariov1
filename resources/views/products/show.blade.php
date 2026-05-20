@@ -12,6 +12,8 @@
                 <dd class="col-sm-9">{{ $product->name }}</dd>
                 <dt class="col-sm-3">Categoria</dt>
                 <dd class="col-sm-9">{{ $product->category?->name }}</dd>
+                <dt class="col-sm-3">Unidad de medida</dt>
+                <dd class="col-sm-9">{{ $product->measurementUnit ? $product->measurementUnit->name.' ('.$product->measurementUnit->abbreviation.')' : '-' }}</dd>
                 <dt class="col-sm-3">Codigo de barras</dt>
                 <dd class="col-sm-9">{{ $product->barcode ?: '-' }}</dd>
                 <dt class="col-sm-3">Descripcion</dt>

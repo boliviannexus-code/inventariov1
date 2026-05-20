@@ -6,14 +6,16 @@
     <title>Login | Inventario POS</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-light">
-<main class="container">
-    <div class="row justify-content-center align-items-center min-vh-100">
-        <div class="col-md-5 col-lg-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h4 mb-1">Inventario POS</h1>
-                    <p class="text-muted mb-4">Acceso administrativo</p>
+<body class="d-flex flex-column">
+<main class="page page-center">
+    <div class="container container-tight py-4">
+        <div class="text-center mb-4">
+            <h1 class="h2">Inventario POS</h1>
+            <p class="text-muted">Panel administrativo</p>
+        </div>
+        <div class="card card-md">
+            <div class="card-body">
+                <h2 class="h2 text-center mb-4">Iniciar sesion</h2>
                     <form method="POST" action="{{ route('login.store') }}">
                         @csrf
                         <div class="mb-3">
@@ -36,7 +38,6 @@
                         </div>
                         <button class="btn btn-primary w-100" type="submit">Ingresar</button>
                     </form>
-                </div>
             </div>
         </div>
     </div>

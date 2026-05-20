@@ -19,11 +19,19 @@
             @endcan
         </x-slot:actions>
 
-        <table class="table table-hover align-middle">
+        <table
+            class="table table-hover align-middle"
+            data-datatable
+            data-url="{{ route('datatables.products') }}"
+            data-order='[[0,"desc"]]'
+            data-columns-id="products-table-columns"
+        >
             <thead>
                 <tr>
+                    <th>ID</th>
                     <th>Producto</th>
                     <th>Categoria</th>
+                    <th>Unidad</th>
                     <th>Barcode</th>
                     <th>Compra</th>
                     <th>Venta</th>
@@ -31,51 +39,20 @@
                     <th class="text-end">Acciones</th>
                 </tr>
             </thead>
-            <tbody>
-                @forelse ($products as $product)
-                    <tr>
-                        <td>{{ $product->name }}</td>
-                        <td>{{ $product->category?->name }}</td>
-                        <td>{{ $product->barcode ?: '-' }}</td>
-                        <td>{{ money_format_decimal($product->purchase_price) }}</td>
-                        <td>{{ money_format_decimal($product->sale_price) }}</td>
-                        <td><span class="badge text-bg-{{ $product->is_active ? 'success' : 'secondary' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span></td>
-                        <td class="text-end">
-                            <a
-                                class="btn btn-outline-secondary btn-sm"
-                                href="{{ route('products.show', $product) }}"
-                                data-modal-url="{{ route('products.show', $product) }}"
-                                data-modal-title="Detalle de producto"
-                            >
-                                Ver
-                            </a>
-                            @can('products.update')
-                                <a
-                                    class="btn btn-outline-primary btn-sm"
-                                    href="{{ route('products.edit', $product) }}"
-                                    data-modal-url="{{ route('products.edit', $product) }}"
-                                    data-modal-title="Editar producto"
-                                >
-                                    Editar
-                                </a>
-                            @endcan
-                            @can('products.delete')
-                                <form class="d-inline" method="POST" action="{{ route('products.destroy', $product) }}" data-confirm-delete="Eliminar producto?">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
-                                </form>
-                            @endcan
-                        </td>
-                    </tr>
-                @empty
-                    <x-ui.empty-row colspan="7" message="No hay productos registrados." />
-                @endforelse
-            </tbody>
+            <tbody></tbody>
         </table>
-
-        <x-slot:footer>
-            {{ $products->links() }}
-        </x-slot:footer>
+        <script type="application/json" id="products-table-columns">
+            [
+                {"data":"id","name":"products.id"},
+                {"data":"name","name":"products.name"},
+                {"data":"category_name","name":"categories.name","defaultContent":"-"},
+                {"data":"measurement_unit_abbreviation","name":"measurement_units.abbreviation","defaultContent":"-"},
+                {"data":"barcode","name":"products.barcode","defaultContent":"-"},
+                {"data":"purchase_price","name":"products.purchase_price","className":"text-end"},
+                {"data":"sale_price","name":"products.sale_price","className":"text-end"},
+                {"data":"is_active","name":"products.is_active","orderable":false,"searchable":false},
+                {"data":"actions","name":"actions","orderable":false,"searchable":false,"className":"text-end"}
+            ]
+        </script>
     </x-ui.table-card>
 @endsection

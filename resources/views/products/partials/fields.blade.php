@@ -1,13 +1,13 @@
 <div class="row g-3">
     <div class="col-md-8">
         <label class="form-label" for="modal-product-name">Nombre</label>
-        <input class="form-control" id="modal-product-name" name="name" value="{{ old('name', $product->name ?? '') }}" required>
+        <input class="form-control" id="modal-product-name" name="name" value="{{ old('name', $product->name ?? '') }}" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" required>
         <div class="invalid-feedback" data-error-for="name"></div>
     </div>
 
     <div class="col-md-4">
         <label class="form-label" for="modal-product-barcode">Codigo de barras</label>
-        <input class="form-control" id="modal-product-barcode" name="barcode" value="{{ old('barcode', $product->barcode ?? '') }}">
+        <input class="form-control" id="modal-product-barcode" name="barcode" value="{{ old('barcode', $product->barcode ?? '') }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
         <div class="invalid-feedback" data-error-for="barcode"></div>
     </div>
 
@@ -24,27 +24,40 @@
         <div class="invalid-feedback" data-error-for="category_id"></div>
     </div>
 
+    <div class="col-md-6">
+        <label class="form-label" for="modal-product-measurement-unit">Unidad de medida</label>
+        <select class="form-select" id="modal-product-measurement-unit" name="measurement_unit_id" data-tom-select data-placeholder="Seleccionar" required>
+            <option value="">Seleccionar</option>
+            @foreach ($measurementUnits as $unit)
+                <option value="{{ $unit->id }}" @selected((int) old('measurement_unit_id', $product->measurement_unit_id ?? 0) === $unit->id)>
+                    {{ $unit->name }} ({{ $unit->abbreviation }})
+                </option>
+            @endforeach
+        </select>
+        <div class="invalid-feedback" data-error-for="measurement_unit_id"></div>
+    </div>
+
     <div class="col-md-3">
         <label class="form-label" for="modal-product-purchase-price">Precio compra</label>
-        <input class="form-control" id="modal-product-purchase-price" name="purchase_price" type="number" step="0.01" min="0" value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" required>
+        <input class="form-control" id="modal-product-purchase-price" name="purchase_price" type="number" step="0.01" min="0" value="{{ old('purchase_price', $product->purchase_price ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         <div class="invalid-feedback" data-error-for="purchase_price"></div>
     </div>
 
     <div class="col-md-3">
         <label class="form-label" for="modal-product-sale-price">Precio venta</label>
-        <input class="form-control" id="modal-product-sale-price" name="sale_price" type="number" step="0.01" min="0" value="{{ old('sale_price', $product->sale_price ?? 0) }}" required>
+        <input class="form-control" id="modal-product-sale-price" name="sale_price" type="number" step="0.01" min="0" value="{{ old('sale_price', $product->sale_price ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         <div class="invalid-feedback" data-error-for="sale_price"></div>
     </div>
 
     <div class="col-md-3">
         <label class="form-label" for="modal-product-minimum-stock">Stock minimo</label>
-        <input class="form-control" id="modal-product-minimum-stock" name="minimum_stock" type="number" min="0" value="{{ old('minimum_stock', $product->minimum_stock ?? 0) }}" required>
+        <input class="form-control" id="modal-product-minimum-stock" name="minimum_stock" type="number" min="0" value="{{ old('minimum_stock', $product->minimum_stock ?? 0) }}" autocomplete="off" data-lpignore="true" data-1p-ignore="true" required>
         <div class="invalid-feedback" data-error-for="minimum_stock"></div>
     </div>
 
     <div class="col-md-9">
         <label class="form-label" for="modal-product-description">Descripcion</label>
-        <textarea class="form-control" id="modal-product-description" name="description" rows="3">{{ old('description', $product->description ?? '') }}</textarea>
+        <textarea class="form-control" id="modal-product-description" name="description" rows="3" autocomplete="off" data-lpignore="true" data-1p-ignore="true">{{ old('description', $product->description ?? '') }}</textarea>
         <div class="invalid-feedback" data-error-for="description"></div>
     </div>
 

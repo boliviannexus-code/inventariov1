@@ -11,4 +11,17 @@ enum InventoryMovementType: string
     case AdjustmentOut = 'adjustment_out';
     case TransferIn = 'transfer_in';
     case TransferOut = 'transfer_out';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::InitialStock => 'Stock inicial',
+            self::Purchase => 'Compra',
+            self::Sale => 'Venta',
+            self::AdjustmentIn => 'Ingreso manual',
+            self::AdjustmentOut => 'Salida manual',
+            self::TransferIn => 'Ingreso por traspaso',
+            self::TransferOut => 'Salida por traspaso',
+        };
+    }
 }

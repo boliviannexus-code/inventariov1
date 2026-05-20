@@ -6,11 +6,11 @@
     @foreach ($permissionGroups as $module => $permissions)
         <div class="accordion-item">
             <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-coreui-toggle="collapse" data-coreui-target="#permissions-{{ str($module)->slug() }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#permissions-{{ str($module)->slug() }}">
                     {{ $module }}
                 </button>
             </h2>
-            <div class="accordion-collapse collapse" id="permissions-{{ str($module)->slug() }}" data-coreui-parent="#permissionsAccordion">
+            <div class="accordion-collapse collapse" id="permissions-{{ str($module)->slug() }}" data-bs-parent="#permissionsAccordion">
                 <div class="accordion-body">
                     <div class="row g-2">
                         @foreach ($permissions as $permission)

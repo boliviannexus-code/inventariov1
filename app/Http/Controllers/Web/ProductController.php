@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
+use App\Models\MeasurementUnit;
 use App\Models\Product;
 use App\Services\CategoryService;
 use App\Services\ProductService;
@@ -36,11 +37,13 @@ class ProductController extends Controller
         if ($request->ajax()) {
             return view('products.partials.create-form', [
                 'categories' => $this->categories->active(),
+                'measurementUnits' => $this->activeMeasurementUnits(),
             ]);
         }
 
         return view('products.create', [
             'categories' => $this->categories->active(),
+            'measurementUnits' => $this->activeMeasurementUnits(),
         ]);
     }
 
@@ -69,12 +72,12 @@ class ProductController extends Controller
 
         if ($request->ajax()) {
             return view('products.partials.show', [
-                'product' => $product->load('category'),
+                'product' => $product->load(['category', 'measurementUnit']),
             ]);
         }
 
         return view('products.show', [
-            'product' => $product->load('category'),
+            'product' => $product->load(['category', 'measurementUnit']),
         ]);
     }
 
@@ -86,12 +89,14 @@ class ProductController extends Controller
             return view('products.partials.edit-form', [
                 'product' => $product,
                 'categories' => $this->categories->active(),
+                'measurementUnits' => $this->activeMeasurementUnits(),
             ]);
         }
 
         return view('products.edit', [
             'product' => $product,
             'categories' => $this->categories->active(),
+            'measurementUnits' => $this->activeMeasurementUnits(),
         ]);
     }
 
@@ -123,5 +128,13 @@ class ProductController extends Controller
         return redirect()
             ->route('products.index')
             ->with('success', 'Producto eliminado correctamente.');
+    }
+
+    private function activeMeasurementUnits()
+    {
+        return MeasurementUnit::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'abbreviation']);
     }
 }

@@ -4,27 +4,36 @@ namespace App\Repositories;
 
 use App\Models\Product;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class ProductRepository
 {
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return Product::query()
-            ->with('category')
+            ->with(['category', 'measurementUnit'])
             ->latest()
             ->paginate($perPage);
     }
 
+    public function active(): Collection
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+    }
+
     public function create(array $data): Product
     {
-        return Product::create($data)->load('category');
+        return Product::create($data)->load(['category', 'measurementUnit']);
     }
 
     public function update(Product $product, array $data): Product
     {
         $product->update($data);
 
-        return $product->refresh()->load('category');
+        return $product->refresh()->load(['category', 'measurementUnit']);
     }
 
     public function delete(Product $product): bool

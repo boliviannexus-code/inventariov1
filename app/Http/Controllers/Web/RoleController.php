@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Role\AssignRolePermissionsRequest;
 use App\Http\Requests\Role\StoreRoleRequest;
 use App\Http\Requests\Role\UpdateRoleRequest;
 use App\Repositories\PermissionRepository;
@@ -129,7 +130,7 @@ class RoleController extends Controller
         return view('roles.partials.permissions-form', $data);
     }
 
-    public function assignPermissions(UpdateRoleRequest $request, Role $role): JsonResponse|RedirectResponse
+    public function assignPermissions(AssignRolePermissionsRequest $request, Role $role): JsonResponse|RedirectResponse
     {
         $this->authorize('assignPermissions', $role);
 

@@ -8,31 +8,33 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body>
-<div class="app-shell d-flex">
-    <x-admin.sidebar />
+<body class="layout-fluid">
+<div class="page">
+    @include('layouts.partials.sidebar')
 
-    <div class="wrapper d-flex flex-column flex-grow-1 app-wrapper">
-        <x-admin.header />
+    <div class="page-wrapper app-wrapper">
+        @include('layouts.partials.navbar')
 
-        <main class="body flex-grow-1 app-content">
-            <div class="container-lg px-3 px-lg-4 py-4">
+        <div class="page-body">
+            <div class="container-xl">
                 <x-admin.flash />
 
                 <div wire:loading.class="opacity-75">
                     @yield('content')
                 </div>
             </div>
-        </main>
+        </div>
+
+        @include('layouts.partials.footer')
     </div>
 </div>
 
-<div class="modal fade" id="ajaxModal" tabindex="-1" aria-labelledby="ajaxModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal modal-blur fade" id="ajaxModal" tabindex="-1" aria-labelledby="ajaxModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title fs-5" id="ajaxModalTitle">Detalle</h2>
-                <button class="btn-close" type="button" data-coreui-dismiss="modal" aria-label="Cerrar"></button>
+                <h2 class="modal-title" id="ajaxModalTitle">Detalle</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body" data-modal-body></div>
         </div>

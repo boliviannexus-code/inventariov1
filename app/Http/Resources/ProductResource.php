@@ -15,6 +15,12 @@ class ProductResource extends JsonResource
             'barcode' => $this->barcode,
             'category_id' => $this->category_id,
             'category' => CategoryResource::make($this->whenLoaded('category')),
+            'measurement_unit_id' => $this->measurement_unit_id,
+            'measurement_unit' => $this->whenLoaded('measurementUnit', fn () => [
+                'id' => $this->measurementUnit->id,
+                'name' => $this->measurementUnit->name,
+                'abbreviation' => $this->measurementUnit->abbreviation,
+            ]),
             'description' => $this->description,
             'purchase_price' => $this->purchase_price,
             'sale_price' => $this->sale_price,

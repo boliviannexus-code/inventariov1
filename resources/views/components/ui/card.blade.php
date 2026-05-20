@@ -5,11 +5,11 @@
     'class' => '',
 ])
 
-<div {{ $attributes->merge(['class' => "card border-0 shadow-sm {$class}"]) }}>
+<div {{ $attributes->merge(['class' => "card {$class}"]) }}>
     @if ($title || $actions)
-        <div class="card-header bg-white d-flex flex-column flex-md-row gap-2 justify-content-between align-items-md-center">
+        <div class="card-header d-flex flex-column flex-md-row gap-2 justify-content-between align-items-md-center">
             @if ($title)
-                <span class="fw-semibold">{{ $title }}</span>
+                <h3 class="card-title mb-0">{{ $title }}</h3>
             @endif
 
             @if ($actions)
@@ -21,7 +21,7 @@
     {{ $slot }}
 
     @if ($footer)
-        <div class="card-footer bg-white">
+        <div class="card-footer">
             {{ $footer }}
         </div>
     @endif
