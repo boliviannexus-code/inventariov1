@@ -1,0 +1,88 @@
+@import "@coreui/coreui/dist/css/coreui.min.css";
+@import "@coreui/icons/css/free.min.css";
+
+:root {
+    --app-sidebar-width: 16rem;
+}
+
+body {
+    background: var(--cui-tertiary-bg);
+}
+
+.app-shell {
+    min-height: 100vh;
+}
+
+.app-sidebar {
+    --cui-sidebar-width: var(--app-sidebar-width);
+
+    width: var(--app-sidebar-width);
+}
+
+.app-wrapper {
+    min-width: 0;
+    width: 100%;
+    transition: margin-left .15s ease-in-out;
+}
+
+.app-content {
+    min-height: calc(100vh - 4rem);
+}
+
+.sidebar-brand {
+    min-height: 4rem;
+}
+
+.nav-icon {
+    width: 1.25rem;
+}
+
+.table-card .table {
+    margin-bottom: 0;
+}
+
+.form-panel {
+    max-width: 980px;
+}
+
+[wire\:loading] {
+    opacity: .65;
+}
+
+@media (min-width: 992px) {
+    .app-wrapper {
+        margin-left: var(--app-sidebar-width);
+        width: calc(100% - var(--app-sidebar-width));
+    }
+
+    body.sidebar-collapsed .app-sidebar {
+        margin-left: calc(var(--app-sidebar-width) * -1);
+    }
+
+    body.sidebar-collapsed .app-wrapper {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .app-sidebar {
+        margin-left: calc(var(--app-sidebar-width) * -1);
+    }
+
+    body.sidebar-mobile-open .app-sidebar {
+        margin-left: 0;
+    }
+
+    body.sidebar-mobile-open::after {
+        position: fixed;
+        inset: 0;
+        z-index: 1029;
+        content: "";
+        background: rgba(0, 0, 0, .35);
+    }
+
+    body.sidebar-mobile-open .app-sidebar {
+        z-index: 1030;
+    }
+}

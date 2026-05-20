@@ -1,0 +1,29 @@
+<?php
+
+namespace Database\Factories;
+
+use App\Models\Category;
+use App\Models\Product;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * @extends Factory<Product>
+ */
+class ProductFactory extends Factory
+{
+    public function definition(): array
+    {
+        $purchasePrice = fake()->randomFloat(2, 5, 300);
+
+        return [
+            'name' => fake()->unique()->words(3, true),
+            'barcode' => fake()->unique()->ean13(),
+            'category_id' => Category::factory(),
+            'description' => fake()->optional()->sentence(),
+            'purchase_price' => $purchasePrice,
+            'sale_price' => $purchasePrice * fake()->randomFloat(2, 1.15, 1.8),
+            'minimum_stock' => fake()->numberBetween(1, 20),
+            'is_active' => true,
+        ];
+    }
+}
