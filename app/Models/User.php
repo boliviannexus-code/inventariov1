@@ -7,6 +7,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -32,5 +34,15 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'password' => 'hashed',
         ];
+    }
+
+    public function pointOfSales(): BelongsToMany
+    {
+        return $this->belongsToMany(PointOfSale::class)->withTimestamps();
+    }
+
+    public function cashRegisters(): HasMany
+    {
+        return $this->hasMany(CashRegister::class);
     }
 }

@@ -1,4 +1,4 @@
-<form method="POST" action="{{ route('products.store') }}" data-ajax-form data-refresh-url="{{ route('products.index') }}" autocomplete="off" novalidate>
+<form method="POST" action="{{ route('products.store') }}" enctype="multipart/form-data" data-ajax-form data-refresh-url="{{ route('products.index') }}" autocomplete="off" novalidate>
     @csrf
 
     @include('products.partials.fields', ['product' => null])

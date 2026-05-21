@@ -11,7 +11,7 @@ class ProductRepository
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return Product::query()
-            ->with(['category', 'measurementUnit'])
+            ->with(['category', 'measurementUnit', 'media'])
             ->latest()
             ->paginate($perPage);
     }
@@ -19,6 +19,7 @@ class ProductRepository
     public function active(): Collection
     {
         return Product::query()
+            ->with('media')
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
@@ -26,14 +27,14 @@ class ProductRepository
 
     public function create(array $data): Product
     {
-        return Product::create($data)->load(['category', 'measurementUnit']);
+        return Product::create($data)->load(['category', 'measurementUnit', 'media']);
     }
 
     public function update(Product $product, array $data): Product
     {
         $product->update($data);
 
-        return $product->refresh()->load(['category', 'measurementUnit']);
+        return $product->refresh()->load(['category', 'measurementUnit', 'media']);
     }
 
     public function delete(Product $product): bool

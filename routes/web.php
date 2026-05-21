@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\AdminDataTableController;
+use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\BranchController;
 use App\Http\Controllers\Web\CategoryController;
 use App\Http\Controllers\Web\DashboardController;
@@ -9,6 +9,8 @@ use App\Http\Controllers\Web\InventoryMovementController;
 use App\Http\Controllers\Web\KardexController;
 use App\Http\Controllers\Web\MeasurementUnitController;
 use App\Http\Controllers\Web\PermissionController;
+use App\Http\Controllers\Web\PointOfSaleController;
+use App\Http\Controllers\Web\PosController;
 use App\Http\Controllers\Web\ProductController;
 use App\Http\Controllers\Web\ProductPresentationController;
 use App\Http\Controllers\Web\PurchaseController;
@@ -30,6 +32,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::resource('branches', BranchController::class);
     Route::resource('warehouses', WarehouseController::class);
+    Route::resource('point-of-sales', PointOfSaleController::class);
+    Route::get('pos', [PosController::class, 'index'])->middleware('permission:pos.access')->name('pos.index');
+    Route::post('pos/open', [PosController::class, 'open'])->middleware('permission:pos.access')->name('pos.open');
+    Route::post('pos/sales', [PosController::class, 'sale'])->middleware('permission:pos.access')->name('pos.sales.store');
     Route::get('inventory', [InventoryMovementController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.index');
     Route::get('inventory/kardex', [KardexController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.kardex');
     Route::resource('suppliers', SupplierController::class);

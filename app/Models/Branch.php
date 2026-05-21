@@ -32,4 +32,9 @@ class Branch extends Model
     {
         return $this->hasMany(Warehouse::class);
     }
+
+    public function pointOfSales(): HasMany
+    {
+        return $this->hasMany(PointOfSale::class);
+    }
 }

@@ -46,6 +46,7 @@ class BranchService
     public function delete(Branch $branch): bool
     {
         $deleted = DB::transaction(function () use ($branch): bool {
+            $branch->pointOfSales()->delete();
             $branch->warehouses()->delete();
 
             return $this->branches->delete($branch);

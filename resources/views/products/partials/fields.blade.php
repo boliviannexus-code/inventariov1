@@ -56,6 +56,23 @@
     </div>
 
     <div class="col-md-9">
+        <label class="form-label" for="modal-product-image">Imagen principal</label>
+        <input class="form-control" id="modal-product-image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+        <div class="form-hint">JPG, PNG o WebP. Maximo 2 MB. Se optimiza automaticamente.</div>
+        <div class="invalid-feedback" data-error-for="image"></div>
+        @if (($product ?? null)?->image_url)
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <img class="product-image-preview" src="{{ $product->image_url }}" alt="{{ $product->name }}">
+                <label class="form-check m-0">
+                    <input class="form-check-input" name="remove_image" type="checkbox" value="1" @checked(old('remove_image'))>
+                    <span class="form-check-label">Quitar imagen actual</span>
+                </label>
+            </div>
+            <div class="invalid-feedback d-block" data-error-for="remove_image"></div>
+        @endif
+    </div>
+
+    <div class="col-md-12">
         <label class="form-label" for="modal-product-description">Descripcion</label>
         <textarea class="form-control" id="modal-product-description" name="description" rows="3" autocomplete="off" data-lpignore="true" data-1p-ignore="true">{{ old('description', $product->description ?? '') }}</textarea>
         <div class="invalid-feedback" data-error-for="description"></div>

@@ -19,6 +19,7 @@ class StoreProductRequest extends FormRequest
             'category_id' => ['required', 'exists:categories,id'],
             'measurement_unit_id' => ['required', 'exists:measurement_units,id'],
             'description' => ['nullable', 'string'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'purchase_price' => ['required', 'numeric', 'min:0'],
             'sale_price' => ['required', 'numeric', 'min:0', 'gte:purchase_price'],
             'minimum_stock' => ['required', 'integer', 'min:0'],

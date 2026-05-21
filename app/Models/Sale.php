@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Sale extends Model
@@ -16,19 +17,23 @@ class Sale extends Model
         'warehouse_id',
         'user_id',
         'cash_register_id',
+        'point_of_sale_id',
         'receipt_number',
+        'sequence_number',
         'sale_date',
         'subtotal',
         'discount',
         'tax',
         'total',
         'status',
+        'notes',
     ];
 
     protected function casts(): array
     {
         return [
             'sale_date' => 'datetime',
+            'sequence_number' => 'integer',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'tax' => 'decimal:2',
@@ -54,5 +59,20 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cashRegister(): BelongsTo
+    {
+        return $this->belongsTo(CashRegister::class);
+    }
+
+    public function pointOfSale(): BelongsTo
+    {
+        return $this->belongsTo(PointOfSale::class);
+    }
+
+    public function details(): HasMany
+    {
+        return $this->hasMany(SaleDetail::class);
     }
 }

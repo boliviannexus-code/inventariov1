@@ -68,6 +68,7 @@ function openAjaxModal(trigger) {
             ajaxModalBody.innerHTML = html;
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
+            syncPointSaleWarehouse(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -284,7 +285,7 @@ function initTomSelects(scope = document) {
             allowEmptyOption: true,
             create: false,
             dropdownParent: 'body',
-            maxItems: 1,
+            maxItems: select.multiple ? null : 1,
             placeholder: select.dataset.placeholder ?? 'Seleccionar',
             plugins: ['clear_button'],
             render: {
@@ -425,6 +426,278 @@ function initPurchaseForm() {
     });
 }
 
+function syncPointSaleWarehouse(scope = document) {
+    scope.querySelectorAll('[data-point-sale-branch]').forEach((branchSelect) => {
+        const form = branchSelect.closest('form') ?? branchSelect.closest('.card') ?? document;
+        const warehouseSelect = form.querySelector('[data-point-sale-warehouse]');
+
+        if (!warehouseSelect) {
+            return;
+        }
+
+        const branchId = branchSelect.value;
+        let selectedStillVisible = true;
+
+        warehouseSelect.querySelectorAll('option[data-branch-id]').forEach((option) => {
+            const visible = !branchId || option.dataset.branchId === branchId;
+            option.hidden = !visible;
+            option.disabled = !visible;
+
+            if (option.selected && !visible) {
+                selectedStillVisible = false;
+            }
+        });
+
+        if (!selectedStillVisible) {
+            warehouseSelect.value = '';
+        }
+    });
+}
+
+function initPosSaleForm() {
+    document.querySelectorAll('[data-pos-sale-form]').forEach((form) => {
+        if (form.dataset.posInitialized === '1') {
+            return;
+        }
+
+        const productPicker = form.querySelector('[data-pos-product-picker]');
+        const presentationPicker = form.querySelector('[data-pos-presentation-picker]');
+        const quantityPicker = form.querySelector('[data-pos-quantity-picker]');
+        const items = form.querySelector('[data-pos-items]');
+        const template = form.querySelector('[data-pos-line-template]');
+        const empty = form.querySelector('[data-pos-empty]');
+        const submit = form.querySelector('[data-pos-submit]');
+        const stockAvailability = JSON.parse(form.dataset.posStock || '{}');
+
+        const focusTomSelect = (select) => {
+            select?.tomselect?.focus();
+            select?.tomselect?.open();
+        };
+
+        const tomOption = (select) => {
+            const value = select?.value;
+
+            return value && select?.tomselect ? select.tomselect.options[value] : null;
+        };
+
+        const selectedPackagesInCart = (productId, presentationId) => Array.from(items.querySelectorAll('[data-pos-row]'))
+            .filter((row) => row.dataset.productId === String(productId) && row.dataset.presentationId === String(presentationId))
+            .reduce((total, row) => total + Math.max(1, Number(row.querySelector('[data-pos-line-quantity]').value || 1)), 0);
+
+        const refreshPresentationOptions = () => {
+            const product = selectedOption(productPicker);
+            const tom = presentationPicker?.tomselect;
+            const availability = stockAvailability[product?.value]?.presentations || [];
+
+            if (!tom) {
+                return;
+            }
+
+            tom.clear(true);
+            tom.clearOptions();
+
+            if (availability.length === 0) {
+                tom.addOption({ value: '', text: product?.value ? 'Sin presentaciones con stock' : 'Selecciona producto' });
+                tom.refreshOptions(false);
+                return;
+            }
+
+            availability.forEach((presentation) => {
+                tom.addOption({
+                    value: String(presentation.id),
+                    text: `${presentation.name} - ${presentation.packages} disp. (${presentation.units} u.)`,
+                    units: presentation.units_per_package,
+                    packages: presentation.packages,
+                    unitsAvailable: presentation.units,
+                    baseName: presentation.name,
+                });
+            });
+            tom.refreshOptions(false);
+        };
+
+        const focusPresentation = () => {
+            window.setTimeout(() => focusTomSelect(presentationPicker), 60);
+        };
+
+        const focusQuantity = () => {
+            window.setTimeout(() => {
+                quantityPicker?.focus();
+                quantityPicker?.select();
+            }, 60);
+        };
+
+        const updateNames = () => {
+            items.querySelectorAll('[data-pos-row]').forEach((row, index) => {
+                row.querySelector('[data-pos-product-input]').name = `items[${index}][product_id]`;
+                row.querySelector('[data-pos-presentation-input]').name = `items[${index}][presentation_id]`;
+                row.querySelector('[data-pos-line-quantity]').name = `items[${index}][package_quantity]`;
+                row.querySelector('[data-pos-line-price]').name = `items[${index}][unit_price]`;
+                row.querySelector('[data-pos-line-discount]').name = `items[${index}][discount]`;
+            });
+        };
+
+        const updateRow = (row) => {
+            const quantity = Math.max(1, Number(row.querySelector('[data-pos-line-quantity]').value || 1));
+            const price = Math.max(0, Number(row.querySelector('[data-pos-line-price]').value || 0));
+            const discount = Math.max(0, Number(row.querySelector('[data-pos-line-discount]').value || 0));
+            const units = Number(row.dataset.units || 1);
+            const unitLabel = row.dataset.unit || 'u';
+            const subtotal = Math.max(0, (quantity * price) - discount);
+            const available = Number(row.dataset.availablePackages || 0);
+
+            row.querySelector('[data-pos-calculation]').textContent = `${quantity} x ${units} = ${quantity * units} ${unitLabel}`;
+            row.querySelector('[data-pos-line-subtotal]').textContent = subtotal.toFixed(2);
+            row.classList.toggle('table-warning', available > 0 && quantity > available);
+        };
+
+        const updateTotals = () => {
+            let subtotal = 0;
+            let discount = 0;
+            const rows = items.querySelectorAll('[data-pos-row]');
+
+            rows.forEach((row) => {
+                updateRow(row);
+                subtotal += Math.max(1, Number(row.querySelector('[data-pos-line-quantity]').value || 1)) * Math.max(0, Number(row.querySelector('[data-pos-line-price]').value || 0));
+                discount += Math.max(0, Number(row.querySelector('[data-pos-line-discount]').value || 0));
+            });
+
+            form.querySelector('[data-pos-subtotal]').textContent = subtotal.toFixed(2);
+            form.querySelector('[data-pos-discount]').textContent = discount.toFixed(2);
+            form.querySelector('[data-pos-total]').textContent = Math.max(0, subtotal - discount).toFixed(2);
+            empty?.classList.toggle('d-none', rows.length > 0);
+            if (submit) {
+                submit.disabled = rows.length === 0;
+            }
+            updateNames();
+        };
+
+        const addLine = () => {
+            const product = selectedOption(productPicker);
+            const presentation = selectedOption(presentationPicker);
+            const presentationData = tomOption(presentationPicker);
+            const quantity = Math.max(1, Number(quantityPicker?.value || 1));
+
+            if (!product?.value || !presentation?.value || !template) {
+                Swal.fire({ icon: 'warning', title: 'Falta informacion', text: 'Selecciona producto y presentacion.' });
+                return;
+            }
+
+            const availablePackages = Number(presentationData?.packages ?? presentation.dataset.packages ?? 0);
+            const alreadySelected = selectedPackagesInCart(product.value, presentation.value);
+
+            if (quantity + alreadySelected > availablePackages) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    text: `Disponible: ${availablePackages} presentaciones. Ya agregaste ${alreadySelected}.`,
+                });
+                return;
+            }
+
+            const wrapper = document.createElement('tbody');
+            wrapper.innerHTML = template.innerHTML.trim();
+            const row = wrapper.firstElementChild;
+            const units = Number(presentationData?.units ?? presentation.dataset.units ?? 1);
+            const basePrice = Number(product.dataset.price || 0);
+
+            row.dataset.productId = product.value;
+            row.dataset.presentationId = presentation.value;
+            row.dataset.units = String(units);
+            row.dataset.unit = product.dataset.unit || 'u';
+            row.dataset.availablePackages = String(availablePackages);
+            row.querySelector('[data-pos-product-input]').value = product.value;
+            row.querySelector('[data-pos-presentation-input]').value = presentation.value;
+            row.querySelector('[data-pos-product-name]').textContent = product.textContent.trim();
+            row.querySelector('[data-pos-presentation-name]').textContent = presentationData?.baseName || presentation.dataset.baseName || presentation.textContent.trim();
+            row.querySelector('[data-pos-line-quantity]').value = String(quantity);
+            row.querySelector('[data-pos-line-quantity]').max = String(availablePackages);
+            row.querySelector('[data-pos-line-price]').value = (basePrice * units).toFixed(2);
+
+            items.append(row);
+            productPicker.tomselect?.clear();
+            presentationPicker.tomselect?.clear();
+            presentationPicker.tomselect?.clearOptions();
+            if (quantityPicker) {
+                quantityPicker.value = '1';
+            }
+            updateTotals();
+        };
+
+        form.querySelectorAll('[data-add-pos-item]').forEach((button) => {
+            button.addEventListener('click', addLine);
+        });
+
+        form.addEventListener('input', (event) => {
+            if (event.target.closest('[data-pos-line-quantity], [data-pos-line-price], [data-pos-line-discount]')) {
+                const quantityInput = event.target.closest('[data-pos-line-quantity]');
+                if (quantityInput) {
+                    const row = quantityInput.closest('[data-pos-row]');
+                    const available = Number(row?.dataset.availablePackages || 0);
+                    const value = Math.max(1, Number(quantityInput.value || 1));
+                    if (available > 0 && value > available) {
+                        quantityInput.value = String(available);
+                        Swal.fire({ icon: 'warning', title: 'Stock maximo', text: `Disponible: ${available} presentaciones.` });
+                    }
+                }
+                updateTotals();
+            }
+        });
+
+        productPicker?.addEventListener('change', () => {
+            refreshPresentationOptions();
+
+            if (productPicker.value) {
+                focusPresentation();
+            }
+        });
+        presentationPicker?.addEventListener('change', () => {
+            if (presentationPicker.value) {
+                focusQuantity();
+            }
+        });
+        quantityPicker?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addLine();
+                window.setTimeout(() => focusTomSelect(productPicker), 80);
+            }
+        });
+
+        if (document.body.dataset.posQuickAddBound !== '1') {
+            document.addEventListener('keydown', (event) => {
+                if (event.key.toLowerCase() !== 'n' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+                    return;
+                }
+
+                const activeForm = document.querySelector('[data-pos-sale-form]');
+                const activeProductPicker = activeForm?.querySelector('[data-pos-product-picker]');
+
+                if (!activeProductPicker) {
+                    return;
+                }
+
+                event.preventDefault();
+                focusTomSelect(activeProductPicker);
+            });
+
+            document.body.dataset.posQuickAddBound = '1';
+        }
+
+        form.addEventListener('click', (event) => {
+            const remove = event.target.closest('[data-pos-remove]');
+            if (!remove) {
+                return;
+            }
+
+            remove.closest('[data-pos-row]')?.remove();
+            updateTotals();
+        });
+
+        updateTotals();
+        form.dataset.posInitialized = '1';
+    });
+}
+
 function initUserDropdowns() {
     document.querySelectorAll('[data-user-dropdown-toggle]').forEach((toggle) => {
         if (toggle.dataset.dropdownInitialized === '1') {
@@ -451,6 +724,8 @@ showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
 initPurchaseForm();
+syncPointSaleWarehouse();
+initPosSaleForm();
 initUserDropdowns();
 initAdminDataTables();
 
@@ -462,6 +737,12 @@ document.addEventListener('click', (event) => {
         openAjaxModal(modalTrigger);
 
         return;
+    }
+});
+
+document.addEventListener('change', (event) => {
+    if (event.target.closest('[data-point-sale-branch]')) {
+        syncPointSaleWarehouse(event.target.closest('form') ?? document);
     }
 });
 

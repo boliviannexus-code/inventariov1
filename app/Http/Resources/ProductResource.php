@@ -22,6 +22,7 @@ class ProductResource extends JsonResource
                 'abbreviation' => $this->measurementUnit->abbreviation,
             ]),
             'description' => $this->description,
+            'image_url' => $this->image_url,
             'purchase_price' => $this->purchase_price,
             'sale_price' => $this->sale_price,
             'minimum_stock' => $this->minimum_stock,

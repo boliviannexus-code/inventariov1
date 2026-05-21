@@ -7,6 +7,16 @@
 @section('content')
     <x-ui.card title="Informacion del producto">
         <div class="card-body">
+            <div class="mb-4">
+                @if ($product->image_url)
+                    <img class="product-image-show" src="{{ $product->image_url }}" alt="{{ $product->name }}">
+                @else
+                    <span class="product-image-show product-image-placeholder" aria-label="Sin imagen">
+                        <i class="ti ti-photo" aria-hidden="true"></i>
+                    </span>
+                @endif
+            </div>
+
             <dl class="row mb-0">
                 <dt class="col-sm-3">Nombre</dt>
                 <dd class="col-sm-9">{{ $product->name }}</dd>

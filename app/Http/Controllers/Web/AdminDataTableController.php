@@ -7,8 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\InventoryMovement;
 use App\Models\MeasurementUnit;
-use App\Models\Product;
 use App\Models\Presentation;
+use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Supplier;
@@ -24,16 +24,18 @@ class AdminDataTableController extends Controller
         abort_unless(auth()->user()?->can('products.view'), 403);
 
         $query = Product::query()
+            ->with('media')
             ->select('products.*', 'categories.name as category_name', 'measurement_units.name as measurement_unit_name', 'measurement_units.abbreviation as measurement_unit_abbreviation')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->leftJoin('measurement_units', 'measurement_units.id', '=', 'products.measurement_unit_id');
 
         return DataTables::eloquent($query)
+            ->addColumn('image', fn (Product $product): string => view('products.partials.image-thumb', compact('product'))->render())
             ->editColumn('purchase_price', fn (Product $product): string => money_format_decimal($product->purchase_price))
             ->editColumn('sale_price', fn (Product $product): string => money_format_decimal($product->sale_price))
             ->editColumn('is_active', fn (Product $product): string => $this->statusBadge($product->is_active))
             ->addColumn('actions', fn (Product $product): string => view('products.partials.actions', compact('product'))->render())
-            ->rawColumns(['is_active', 'actions'])
+            ->rawColumns(['image', 'is_active', 'actions'])
             ->toJson();
     }
 

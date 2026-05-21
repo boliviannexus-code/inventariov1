@@ -22,6 +22,7 @@ class ProductFactory extends Factory
             'category_id' => Category::factory(),
             'measurement_unit_id' => MeasurementUnit::factory(),
             'description' => fake()->optional()->sentence(),
+            'image_path' => null,
             'purchase_price' => $purchasePrice,
             'sale_price' => $purchasePrice * fake()->randomFloat(2, 1.15, 1.8),
             'minimum_stock' => fake()->numberBetween(1, 20),

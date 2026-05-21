@@ -37,4 +37,9 @@ class Warehouse extends Model
     {
         return $this->hasMany(InventoryMovement::class);
     }
+
+    public function pointOfSales(): HasMany
+    {
+        return $this->hasMany(PointOfSale::class);
+    }
 }

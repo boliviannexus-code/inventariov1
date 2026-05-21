@@ -62,7 +62,29 @@
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
+
     <div class="col-md-9">
+        <label class="form-label" for="image">Imagen principal</label>
+        <input class="form-control @error('image') is-invalid @enderror" id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp">
+        <div class="form-hint">JPG, PNG o WebP. Maximo 2 MB. Se optimiza automaticamente.</div>
+        @error('image')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+        @if (($product ?? null)?->image_url)
+            <div class="d-flex align-items-center gap-3 mt-2">
+                <img class="product-image-preview" src="{{ $product->image_url }}" alt="{{ $product->name }}">
+                <label class="form-check m-0">
+                    <input class="form-check-input" name="remove_image" type="checkbox" value="1" @checked(old('remove_image'))>
+                    <span class="form-check-label">Quitar imagen actual</span>
+                </label>
+            </div>
+        @endif
+        @error('remove_image')
+            <div class="invalid-feedback d-block">{{ $message }}</div>
+        @enderror
+    </div>
+
+    <div class="col-md-12">
         <label class="form-label" for="description">Descripcion</label>
         <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" autocomplete="off" data-lpignore="true" data-1p-ignore="true">{{ old('description', $product->description ?? '') }}</textarea>
         @error('description')

@@ -54,7 +54,7 @@
                     </li>
                 @endcan
 
-                @if (auth()->user()?->can('branches.view') || auth()->user()?->can('warehouses.view'))
+                @if (auth()->user()?->can('branches.view') || auth()->user()?->can('warehouses.view') || auth()->user()?->can('point-of-sales.view'))
                     <li class="nav-item app-menu-label">
                         <span class="nav-link disabled">
                             <span class="nav-link-title">Operaciones</span>
@@ -75,6 +75,15 @@
                             <a class="nav-link" href="{{ route('warehouses.index') }}">
                                 <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-building-warehouse"></i></span>
                                 <span class="nav-link-title">Almacenes</span>
+                            </a>
+                        </li>
+                    @endcan
+
+                    @can('point-of-sales.view')
+                        <li class="nav-item {{ request()->routeIs('point-of-sales.*') ? 'active' : '' }}">
+                            <a class="nav-link" href="{{ route('point-of-sales.index') }}">
+                                <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-cash-register"></i></span>
+                                <span class="nav-link-title">Puntos de venta</span>
                             </a>
                         </li>
                     @endcan
@@ -163,6 +172,14 @@
                     </li>
                 @else
                     <li class="nav-item"><span class="nav-link disabled"><span class="nav-link-icon"><i class="ti ti-cash-register"></i></span><span class="nav-link-title">Ventas POS</span></span></li>
+                @endcan
+                @can('pos.access')
+                    <li class="nav-item {{ request()->routeIs('pos.*') ? 'active' : '' }}">
+                        <a class="nav-link" href="{{ route('pos.index') }}">
+                            <span class="nav-link-icon"><i class="ti ti-device-desktop-dollar"></i></span>
+                            <span class="nav-link-title">Punto de venta</span>
+                        </a>
+                    </li>
                 @endcan
                 <li class="nav-item"><span class="nav-link disabled"><span class="nav-link-icon"><i class="ti ti-chart-bar"></i></span><span class="nav-link-title">Reportes</span></span></li>
             </ul>

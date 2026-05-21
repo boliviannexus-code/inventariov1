@@ -29,6 +29,7 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Imagen</th>
                     <th>Producto</th>
                     <th>Categoria</th>
                     <th>Unidad</th>
@@ -44,6 +45,7 @@
         <script type="application/json" id="products-table-columns">
             [
                 {"data":"id","name":"products.id"},
+                {"data":"image","name":"image","orderable":false,"searchable":false},
                 {"data":"name","name":"products.name"},
                 {"data":"category_name","name":"categories.name","defaultContent":"-"},
                 {"data":"measurement_unit_abbreviation","name":"measurement_units.abbreviation","defaultContent":"-"},

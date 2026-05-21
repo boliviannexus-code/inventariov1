@@ -1,4 +1,4 @@
-<form method="POST" action="{{ route('products.update', $product) }}" data-ajax-form data-refresh-url="{{ route('products.index') }}" autocomplete="off" novalidate>
+<form method="POST" action="{{ route('products.update', $product) }}" enctype="multipart/form-data" data-ajax-form data-refresh-url="{{ route('products.index') }}" autocomplete="off" novalidate>
     @csrf
     @method('PUT')
 
