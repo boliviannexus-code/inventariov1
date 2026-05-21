@@ -5,7 +5,9 @@ namespace Tests\Feature\Pos;
 use App\Enums\InventoryMovementType;
 use App\Models\Branch;
 use App\Models\CashRegister;
+use App\Models\Customer;
 use App\Models\InventoryMovement;
+use App\Models\PaymentMethod;
 use App\Models\PointOfSale;
 use App\Models\Presentation;
 use App\Models\Product;
@@ -68,6 +70,7 @@ class PosSaleTest extends TestCase
 
         $this->assertDatabaseHas('sales', [
             'cash_register_id' => $cashRegister->id,
+            'customer_id' => null,
             'point_of_sale_id' => $pointOfSale->id,
             'warehouse_id' => $warehouse->id,
             'user_id' => $user->id,
@@ -91,6 +94,184 @@ class PosSaleTest extends TestCase
             'quantity' => -20,
             'package_quantity' => -2,
             'reference_type' => 'sale',
+        ]);
+    }
+
+    public function test_pos_sale_reuses_customer_history_by_document_number(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $customer = Customer::query()->create([
+            'name' => 'Cliente Historico',
+            'document_number' => '789456',
+            'is_active' => true,
+        ]);
+        $product = Product::factory()->create(['sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'customer_document_number' => '789456',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 1,
+                        'unit_price' => 3,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.index'));
+
+        $this->assertDatabaseHas('sales', [
+            'customer_id' => $customer->id,
+            'customer_name' => 'Cliente Historico',
+            'customer_document_number' => '789456',
+            'total' => '3.00',
+        ]);
+        $this->assertSame(1, Customer::query()->where('document_number', '789456')->count());
+    }
+
+    public function test_pos_sale_creates_customer_with_document_and_name_when_needed(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $product = Product::factory()->create(['sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'customer_document_number' => '123456',
+                'customer_name' => 'Cliente Nuevo',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 1,
+                        'unit_price' => 3,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.index'));
+
+        $customer = Customer::query()->where('document_number', '123456')->firstOrFail();
+
+        $this->assertSame('Cliente Nuevo', $customer->name);
+        $this->assertDatabaseHas('sales', [
+            'customer_id' => $customer->id,
+            'customer_name' => 'Cliente Nuevo',
+            'customer_document_number' => '123456',
+            'total' => '3.00',
+        ]);
+    }
+
+    public function test_pos_sale_with_name_only_does_not_create_customer_record(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $product = Product::factory()->create(['sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'customer_name' => 'Cliente de Mostrador',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 1,
+                        'unit_price' => 3,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.index'));
+
+        $this->assertDatabaseMissing('customers', [
+            'name' => 'Cliente de Mostrador',
+        ]);
+        $this->assertDatabaseHas('sales', [
+            'customer_id' => null,
+            'customer_name' => 'Cliente de Mostrador',
+            'customer_document_number' => null,
+            'total' => '3.00',
         ]);
     }
 
@@ -142,6 +323,193 @@ class PosSaleTest extends TestCase
                 ],
             ])
             ->assertSessionHasErrors('items');
+    }
+
+    public function test_pos_sale_can_be_paid_with_multiple_payment_methods(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
+        $qr = PaymentMethod::query()->firstOrCreate(['name' => 'QR'], ['is_active' => true]);
+        $product = Product::factory()->create(['sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 2,
+                        'unit_price' => 3,
+                    ],
+                ],
+                'payment_mode' => 'mixed',
+                'payments' => [
+                    [
+                        'payment_method_id' => $cash->id,
+                        'amount' => 2,
+                    ],
+                    [
+                        'payment_method_id' => $qr->id,
+                        'amount' => 4,
+                        'reference' => 'QR-123',
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.index'));
+
+        $this->assertDatabaseHas('sale_payments', [
+            'payment_method_id' => $cash->id,
+            'payment_method_name' => 'Efectivo',
+            'amount' => '2.00',
+        ]);
+        $this->assertDatabaseHas('sale_payments', [
+            'payment_method_id' => $qr->id,
+            'payment_method_name' => 'QR',
+            'amount' => '4.00',
+            'reference' => 'QR-123',
+        ]);
+    }
+
+    public function test_cash_pos_sale_accepts_received_amount_and_stores_change(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
+        $product = Product::factory()->create(['sale_price' => 15]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'payment_mode' => 'cash',
+                'cash_payment_method_id' => $cash->id,
+                'cash_received' => 100,
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 1,
+                        'unit_price' => 15,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('pos.index'));
+
+        $this->assertDatabaseHas('sale_payments', [
+            'payment_method_id' => $cash->id,
+            'payment_method_name' => 'Efectivo',
+            'amount' => '15.00',
+            'received_amount' => '100.00',
+            'change_amount' => '85.00',
+        ]);
+    }
+
+    public function test_pos_sale_rejects_payment_total_mismatch(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create();
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
+        $product = Product::factory()->create(['sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 5,
+            'package_quantity' => 5,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.sales.store'), [
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'presentation_id' => $presentation->id,
+                        'package_quantity' => 2,
+                        'unit_price' => 3,
+                    ],
+                ],
+                'payment_mode' => 'mixed',
+                'payments' => [
+                    [
+                        'payment_method_id' => $cash->id,
+                        'amount' => 5,
+                    ],
+                ],
+            ])
+            ->assertSessionHasErrors('payments');
     }
 
     private function userWithPosAccess(): User

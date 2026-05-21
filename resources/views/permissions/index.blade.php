@@ -16,7 +16,7 @@
             <tbody>
                 @forelse ($permissions as $permission)
                     <tr>
-                        <td>{{ $permission->name }}</td>
+                        <td>{{ permission_label($permission->name) }}</td>
                         <td>{{ $permission->guard_name }}</td>
                         <td>{{ $permission->created_at?->format('Y-m-d') }}</td>
                         <td class="text-end">

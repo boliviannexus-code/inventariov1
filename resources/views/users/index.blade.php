@@ -37,7 +37,7 @@
                         <td>{{ $user->email }}</td>
                         <td>
                             @forelse ($user->roles as $role)
-                                <span class="badge text-bg-primary">{{ $role->name }}</span>
+                                <span class="badge text-bg-primary">{{ role_label($role->name) }}</span>
                             @empty
                                 <span class="text-body-secondary">Sin roles</span>
                             @endforelse

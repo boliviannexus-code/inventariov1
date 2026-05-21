@@ -9,7 +9,7 @@
             <div class="col-md-6">
                 <div class="form-check border rounded p-2 ps-5 bg-light">
                     <input class="form-check-input" id="assign-role-{{ $role->id }}" name="roles[]" type="checkbox" value="{{ $role->name }}" @checked($user->hasRole($role->name))>
-                    <label class="form-check-label" for="assign-role-{{ $role->id }}">{{ $role->name }}</label>
+                    <label class="form-check-label" for="assign-role-{{ $role->id }}">{{ role_label($role->name) }}</label>
                 </div>
             </div>
         @endforeach

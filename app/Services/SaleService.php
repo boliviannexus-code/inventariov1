@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Enums\InventoryMovementType;
 use App\Models\CashRegister;
+use App\Models\Customer;
 use App\Models\InventoryMovement;
+use App\Models\PaymentMethod;
 use App\Models\Presentation;
 use App\Models\Product;
 use App\Models\Sale;
@@ -35,10 +37,14 @@ class SaleService
             $subtotal = collect($items)->sum('line_subtotal');
             $discount = collect($items)->sum('discount');
             $total = collect($items)->sum('subtotal');
+            $payments = $this->normalizePayments($data, $total);
             $sequence = $this->nextSequence((int) $pointOfSale->id);
+            $customer = $this->resolveCustomer($data);
 
             $sale = Sale::query()->create([
-                'customer_id' => $data['customer_id'] ?? null,
+                'customer_id' => $customer['id'],
+                'customer_name' => $customer['name'],
+                'customer_document_number' => $customer['document_number'],
                 'branch_id' => $cashRegister->branch_id,
                 'warehouse_id' => $warehouseId,
                 'user_id' => $user->id,
@@ -84,8 +90,79 @@ class SaleService
                 ]);
             }
 
-            return $sale->load(['details.product', 'details.presentation', 'pointOfSale', 'cashRegister']);
+            foreach ($payments as $payment) {
+                $sale->payments()->create($payment);
+            }
+
+            return $sale->load(['details.product', 'details.presentation', 'payments.paymentMethod', 'pointOfSale', 'cashRegister']);
         });
+    }
+
+    private function resolveCustomer(array $data): array
+    {
+        $documentNumber = trim((string) ($data['customer_document_number'] ?? ''));
+        $name = trim((string) ($data['customer_name'] ?? ''));
+
+        if ($documentNumber === '' && ! empty($data['customer_id'])) {
+            $customer = Customer::query()->find((int) $data['customer_id']);
+
+            return [
+                'id' => $customer?->id,
+                'name' => $customer?->name,
+                'document_number' => $customer?->document_number,
+            ];
+        }
+
+        if ($documentNumber === '' && $name === '') {
+            return [
+                'id' => null,
+                'name' => null,
+                'document_number' => null,
+            ];
+        }
+
+        if ($documentNumber === '') {
+            return [
+                'id' => null,
+                'name' => $name,
+                'document_number' => null,
+            ];
+        }
+
+        $customer = Customer::query()
+            ->where('document_number', $documentNumber)
+            ->first();
+
+        if ($customer) {
+            if ($name !== '' && $customer->name !== $name) {
+                $customer->update(['name' => $name]);
+                $customer->refresh();
+            }
+
+            return [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'document_number' => $customer->document_number,
+            ];
+        }
+
+        if ($name === '') {
+            throw ValidationException::withMessages([
+                'customer_name' => 'Ingresa el nombre para registrar el cliente.',
+            ]);
+        }
+
+        $customer = Customer::query()->create([
+            'name' => $name,
+            'document_number' => $documentNumber,
+            'is_active' => true,
+        ]);
+
+        return [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'document_number' => $customer->document_number,
+        ];
     }
 
     private function normalizeItems(array $items): array
@@ -133,6 +210,89 @@ class SaleService
         }
 
         return array_values($normalized);
+    }
+
+    private function normalizePayments(array $data, float|int $total): array
+    {
+        $totalCents = (int) round(((float) $total) * 100);
+        $mode = $data['payment_mode'] ?? 'cash';
+
+        if ($mode === 'cash') {
+            $cashMethodId = (int) ($data['cash_payment_method_id'] ?? 0);
+            $cash = PaymentMethod::query()
+                ->when($cashMethodId > 0, fn ($query) => $query->whereKey($cashMethodId))
+                ->when($cashMethodId <= 0, fn ($query) => $query->where('name', 'Efectivo'))
+                ->firstOr(fn (): PaymentMethod => PaymentMethod::query()->create([
+                    'name' => 'Efectivo',
+                    'is_active' => true,
+                ]));
+            $receivedCents = array_key_exists('cash_received', $data)
+                ? (int) round(((float) $data['cash_received']) * 100)
+                : $totalCents;
+
+            if ($receivedCents < $totalCents) {
+                throw ValidationException::withMessages([
+                    'cash_received' => 'El monto recibido debe cubrir el total de la venta.',
+                ]);
+            }
+
+            return [[
+                'payment_method_id' => $cash->id,
+                'payment_method_name' => $cash->name,
+                'amount' => $totalCents / 100,
+                'received_amount' => $receivedCents / 100,
+                'change_amount' => ($receivedCents - $totalCents) / 100,
+                'reference' => null,
+            ]];
+        }
+
+        $payments = $data['payments'] ?? [];
+
+        if ($payments === []) {
+            throw ValidationException::withMessages([
+                'payments' => 'Agrega al menos un pago.',
+            ]);
+        }
+
+        $methodIds = collect($payments)->pluck('payment_method_id')->filter()->map(fn ($id): int => (int) $id)->unique();
+        $methods = PaymentMethod::query()->whereIn('id', $methodIds)->where('is_active', true)->get()->keyBy('id');
+        $normalized = [];
+        $paidCents = 0;
+
+        foreach ($payments as $index => $payment) {
+            $method = $methods->get((int) ($payment['payment_method_id'] ?? 0));
+            $amountCents = (int) round(((float) ($payment['amount'] ?? 0)) * 100);
+
+            if (! $method) {
+                throw ValidationException::withMessages([
+                    'payments.'.($index).'.payment_method_id' => 'Selecciona un metodo de pago activo.',
+                ]);
+            }
+
+            if ($amountCents <= 0) {
+                throw ValidationException::withMessages([
+                    'payments.'.($index).'.amount' => 'El monto debe ser mayor a cero.',
+                ]);
+            }
+
+            $paidCents += $amountCents;
+            $normalized[] = [
+                'payment_method_id' => $method->id,
+                'payment_method_name' => $method->name,
+                'amount' => $amountCents / 100,
+                'received_amount' => null,
+                'change_amount' => null,
+                'reference' => trim((string) ($payment['reference'] ?? '')) ?: null,
+            ];
+        }
+
+        if ($paidCents !== $totalCents) {
+            throw ValidationException::withMessages([
+                'payments' => 'La suma de pagos debe ser igual al total de la venta.',
+            ]);
+        }
+
+        return $normalized;
     }
 
     private function ensureStock(array $item, int $warehouseId): void

@@ -69,6 +69,7 @@ function openAjaxModal(trigger) {
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
+            initDefragmentForms(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -316,9 +317,12 @@ function updatePurchaseRow(row) {
     const unitsPerPackage = Number(presentationOption?.dataset.units || 0);
     const unitLabel = productOption?.dataset.unit || 'u.';
     const totalUnits = quantity * unitsPerPackage;
+    const basePrice = Number(productOption?.dataset.price || 0);
+    const shouldAutoPrice = unitPrice && (unitPrice.dataset.autoPrice === '1' || !unitPrice.value);
 
-    if (unitPrice && !unitPrice.value && productOption?.dataset.price) {
-        unitPrice.value = Number(productOption.dataset.price).toFixed(2);
+    if (unitPrice && shouldAutoPrice && basePrice >= 0 && unitsPerPackage > 0) {
+        unitPrice.value = (basePrice * unitsPerPackage).toFixed(2);
+        unitPrice.dataset.autoPrice = '1';
         price = Math.max(0, rowNumberValue(row, '[data-unit-price]'));
     }
 
@@ -374,12 +378,27 @@ function initPurchaseForm() {
                 refreshPurchaseReference(form);
             }
 
+            if (event.target.closest('[data-purchase-product], [data-purchase-presentation]')) {
+                const row = event.target.closest('[data-purchase-item-row]');
+                const unitPrice = row?.querySelector('[data-unit-price]');
+
+                if (unitPrice) {
+                    unitPrice.dataset.autoPrice = '1';
+                }
+            }
+
             if (event.target.closest('[data-purchase-product], [data-purchase-presentation], [data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
         });
 
         form.addEventListener('input', (event) => {
+            const unitPrice = event.target.closest('[data-unit-price]');
+
+            if (unitPrice) {
+                unitPrice.dataset.autoPrice = '0';
+            }
+
             if (event.target.closest('[data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
@@ -468,6 +487,16 @@ function initPosSaleForm() {
         const empty = form.querySelector('[data-pos-empty]');
         const submit = form.querySelector('[data-pos-submit]');
         const stockAvailability = JSON.parse(form.dataset.posStock || '{}');
+        const customers = JSON.parse(form.dataset.posCustomers || '[]');
+        const payments = form.querySelector('[data-pos-payments]');
+        const paymentTemplate = form.querySelector('[data-pos-payment-template]');
+        const paymentMode = form.querySelector('[data-pos-payment-mode]');
+        const cashPanel = form.querySelector('[data-pos-cash-panel]');
+        const mixedPanel = form.querySelector('[data-pos-mixed-panel]');
+        const cashReceived = form.querySelector('[data-pos-cash-received]');
+        const cashChange = form.querySelector('[data-pos-cash-change]');
+        const useCash = form.querySelector('[data-pos-use-cash]');
+        const useMixed = form.querySelector('[data-pos-use-mixed]');
 
         const focusTomSelect = (select) => {
             select?.tomselect?.focus();
@@ -536,6 +565,71 @@ function initPosSaleForm() {
             });
         };
 
+        const updatePaymentNames = () => {
+            if (paymentMode?.value !== 'mixed') {
+                payments?.querySelectorAll('[data-pos-payment-row]').forEach((row) => {
+                    row.querySelector('[data-pos-payment-method]').removeAttribute('name');
+                    row.querySelector('[data-pos-payment-amount]').removeAttribute('name');
+                    row.querySelector('[data-pos-payment-reference]').removeAttribute('name');
+                });
+
+                return;
+            }
+
+            payments?.querySelectorAll('[data-pos-payment-row]').forEach((row, index) => {
+                row.querySelector('[data-pos-payment-method]').name = `payments[${index}][payment_method_id]`;
+                row.querySelector('[data-pos-payment-amount]').name = `payments[${index}][amount]`;
+                row.querySelector('[data-pos-payment-reference]').name = `payments[${index}][reference]`;
+            });
+        };
+
+        const updateCashPayment = (total) => {
+            const received = Math.max(0, Number(cashReceived?.value || 0));
+            const change = Math.max(0, received - total);
+            const complete = total > 0 && received >= total;
+
+            if (cashChange) {
+                cashChange.textContent = change.toFixed(2);
+                cashChange.classList.toggle('text-success', complete);
+                cashChange.classList.toggle('text-danger', total > 0 && !complete);
+            }
+
+            return complete;
+        };
+
+        const updatePayments = (total) => {
+            const rows = payments?.querySelectorAll('[data-pos-payment-row]') ?? [];
+            const paidTarget = form.querySelector('[data-pos-paid]');
+            const dueTarget = form.querySelector('[data-pos-due]');
+
+            if (rows.length === 1) {
+                const amount = rows[0].querySelector('[data-pos-payment-amount]');
+                if (amount && (amount.dataset.autoAmount === '1' || !amount.value)) {
+                    amount.value = total > 0 ? total.toFixed(2) : '';
+                    amount.dataset.autoAmount = '1';
+                }
+            }
+
+            let paid = 0;
+            rows.forEach((row) => {
+                paid += Math.max(0, Number(row.querySelector('[data-pos-payment-amount]').value || 0));
+            });
+
+            const due = Math.max(0, total - paid);
+            if (paidTarget) {
+                paidTarget.textContent = paid.toFixed(2);
+            }
+            if (dueTarget) {
+                dueTarget.textContent = due.toFixed(2);
+                dueTarget.classList.toggle('text-danger', Math.abs(total - paid) >= 0.01);
+                dueTarget.classList.toggle('text-success', total > 0 && Math.abs(total - paid) < 0.01);
+            }
+
+            updatePaymentNames();
+
+            return Math.abs(total - paid) < 0.01 && rows.length > 0;
+        };
+
         const updateRow = (row) => {
             const quantity = Math.max(1, Number(row.querySelector('[data-pos-line-quantity]').value || 1));
             const price = Math.max(0, Number(row.querySelector('[data-pos-line-price]').value || 0));
@@ -563,10 +657,17 @@ function initPosSaleForm() {
 
             form.querySelector('[data-pos-subtotal]').textContent = subtotal.toFixed(2);
             form.querySelector('[data-pos-discount]').textContent = discount.toFixed(2);
-            form.querySelector('[data-pos-total]').textContent = Math.max(0, subtotal - discount).toFixed(2);
+            const total = Math.max(0, subtotal - discount);
+            form.querySelector('[data-pos-total]').textContent = total.toFixed(2);
             empty?.classList.toggle('d-none', rows.length > 0);
+            const paymentsComplete = paymentMode?.value === 'mixed'
+                ? updatePayments(total)
+                : updateCashPayment(total);
             if (submit) {
-                submit.disabled = rows.length === 0;
+                submit.disabled = rows.length === 0 || !paymentsComplete;
+            }
+            if (paymentMode?.value !== 'mixed') {
+                updatePaymentNames();
             }
             updateNames();
         };
@@ -623,6 +724,60 @@ function initPosSaleForm() {
             updateTotals();
         };
 
+        const syncCustomer = () => {
+            const documentInput = form.querySelector('[data-pos-customer-document]');
+            const nameInput = form.querySelector('[data-pos-customer-name]');
+            const customerIdInput = form.querySelector('[data-pos-customer-id]');
+            const status = form.querySelector('[data-pos-customer-status]');
+            const documentNumber = documentInput?.value.trim() || '';
+            const customerName = nameInput?.value.trim() || '';
+            const customer = customers.find((item) => String(item.document_number || '').trim() === documentNumber);
+            const autoFilledName = nameInput?.dataset.autoFilledName || '';
+
+            const clearAutoFilledName = () => {
+                if (nameInput && autoFilledName && nameInput.value.trim() === autoFilledName) {
+                    nameInput.value = '';
+                    nameInput.dataset.autoFilledName = '';
+                }
+            };
+
+            if (!documentNumber) {
+                if (customerIdInput) {
+                    customerIdInput.value = '';
+                }
+                clearAutoFilledName();
+                if (status) {
+                    status.textContent = nameInput?.value.trim()
+                        ? 'Se guardara el nombre solo en esta venta, sin registrar cliente.'
+                        : 'Sin cliente asociado.';
+                }
+                return;
+            }
+
+            if (customer) {
+                if (customerIdInput) {
+                    customerIdInput.value = String(customer.id);
+                }
+                if (nameInput && (!nameInput.value.trim() || nameInput.value.trim() === autoFilledName)) {
+                    nameInput.value = customer.name || '';
+                    nameInput.dataset.autoFilledName = customer.name || '';
+                }
+                if (status) {
+                    const sales = Number(customer.sales_count || 0);
+                    status.textContent = `Cliente encontrado: ${customer.name}. Historial: ${sales} venta(s).`;
+                }
+                return;
+            }
+
+            if (customerIdInput) {
+                customerIdInput.value = '';
+            }
+            clearAutoFilledName();
+            if (status) {
+                status.textContent = 'Documento nuevo. Ingresa el nombre para registrar el cliente.';
+            }
+        };
+
         form.querySelectorAll('[data-add-pos-item]').forEach((button) => {
             button.addEventListener('click', addLine);
         });
@@ -639,6 +794,16 @@ function initPosSaleForm() {
                         Swal.fire({ icon: 'warning', title: 'Stock maximo', text: `Disponible: ${available} presentaciones.` });
                     }
                 }
+                updateTotals();
+            }
+
+            const paymentAmount = event.target.closest('[data-pos-payment-amount]');
+            if (paymentAmount) {
+                paymentAmount.dataset.autoAmount = '0';
+                updateTotals();
+            }
+
+            if (event.target.closest('[data-pos-cash-received]')) {
                 updateTotals();
             }
         });
@@ -662,6 +827,25 @@ function initPosSaleForm() {
                 window.setTimeout(() => focusTomSelect(productPicker), 80);
             }
         });
+        form.querySelector('[data-pos-customer-document]')?.addEventListener('input', syncCustomer);
+        form.querySelector('[data-pos-customer-document]')?.addEventListener('change', syncCustomer);
+        form.querySelector('[data-pos-customer-name]')?.addEventListener('input', syncCustomer);
+
+        const setPaymentMode = (mode) => {
+            if (paymentMode) {
+                paymentMode.value = mode;
+            }
+            cashPanel?.classList.toggle('d-none', mode !== 'cash');
+            mixedPanel?.classList.toggle('d-none', mode !== 'mixed');
+            useCash?.classList.toggle('btn-primary', mode === 'cash');
+            useCash?.classList.toggle('btn-outline-primary', mode !== 'cash');
+            useMixed?.classList.toggle('btn-primary', mode === 'mixed');
+            useMixed?.classList.toggle('btn-outline-primary', mode !== 'mixed');
+            updateTotals();
+        };
+
+        useCash?.addEventListener('click', () => setPaymentMode('cash'));
+        useMixed?.addEventListener('click', () => setPaymentMode('mixed'));
 
         if (document.body.dataset.posQuickAddBound !== '1') {
             document.addEventListener('keydown', (event) => {
@@ -684,17 +868,87 @@ function initPosSaleForm() {
         }
 
         form.addEventListener('click', (event) => {
-            const remove = event.target.closest('[data-pos-remove]');
-            if (!remove) {
+            const addPayment = event.target.closest('[data-add-pos-payment]');
+            if (addPayment && payments && paymentTemplate) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = paymentTemplate.innerHTML.trim();
+                const row = wrapper.firstElementChild;
+                const amount = row.querySelector('[data-pos-payment-amount]');
+
+                if (amount) {
+                    amount.dataset.autoAmount = '0';
+                }
+
+                payments.append(row);
+                updateTotals();
+                amount?.focus();
+
                 return;
             }
 
-            remove.closest('[data-pos-row]')?.remove();
-            updateTotals();
+            const remove = event.target.closest('[data-pos-remove]');
+            if (remove) {
+                remove.closest('[data-pos-row]')?.remove();
+                updateTotals();
+
+                return;
+            }
+
+            const removePayment = event.target.closest('[data-remove-pos-payment]');
+            if (removePayment) {
+                const rows = payments?.querySelectorAll('[data-pos-payment-row]') ?? [];
+                const row = removePayment.closest('[data-pos-payment-row]');
+
+                if (rows.length <= 1) {
+                    row?.querySelectorAll('input').forEach((input) => {
+                        input.value = '';
+                        input.dataset.autoAmount = input.matches('[data-pos-payment-amount]') ? '1' : '0';
+                    });
+                } else {
+                    row?.remove();
+                }
+
+                updateTotals();
+            }
         });
 
         updateTotals();
+        setPaymentMode(paymentMode?.value || 'cash');
+        syncCustomer();
         form.dataset.posInitialized = '1';
+    });
+}
+
+function initDefragmentForms(scope = document) {
+    scope.querySelectorAll('[data-defragment-form]').forEach((form) => {
+        if (form.dataset.defragmentInitialized === '1') {
+            return;
+        }
+
+        const presentation = form.querySelector('[data-defragment-presentation]');
+        const quantity = form.querySelector('[data-defragment-quantity]');
+        const preview = form.querySelector('[data-defragment-preview]');
+
+        const syncLimits = () => {
+            const option = selectedOption(presentation);
+            const max = Math.max(1, Number(option?.dataset.max || 1));
+            const units = Math.max(1, Number(option?.dataset.units || 1));
+            const value = Math.min(max, Math.max(1, Number(quantity?.value || 1)));
+
+            if (quantity) {
+                quantity.max = String(max);
+                quantity.value = String(value);
+            }
+
+            if (preview) {
+                preview.textContent = `Se convertiran ${value} empaque(s) en ${value * units} unidad(es). Disponible: ${max}.`;
+            }
+        };
+
+        presentation?.addEventListener('change', syncLimits);
+        quantity?.addEventListener('input', syncLimits);
+        syncLimits();
+        form.dataset.defragmentInitialized = '1';
     });
 }
 
@@ -720,13 +974,36 @@ function initUserDropdowns() {
     });
 }
 
+function initCashExpenseModal() {
+    const modal = document.querySelector('[data-show-cash-expense-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+function initCashCloseModal() {
+    const modal = document.querySelector('[data-show-cash-close-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
 initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
+initDefragmentForms();
 initUserDropdowns();
+initCashExpenseModal();
+initCashCloseModal();
 initAdminDataTables();
 
 document.addEventListener('click', (event) => {

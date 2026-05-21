@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Web;
 
-use App\Enums\InventoryMovementType;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\InventoryMovement;
 use App\Models\MeasurementUnit;
+use App\Models\PaymentMethod;
 use App\Models\Presentation;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -77,6 +77,18 @@ class AdminDataTableController extends Controller
             ->toJson();
     }
 
+    public function paymentMethods(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('payment-methods.view'), 403);
+
+        return DataTables::eloquent(PaymentMethod::query()->select('payment_methods.*'))
+            ->editColumn('is_active', fn (PaymentMethod $paymentMethod): string => $this->statusBadge($paymentMethod->is_active))
+            ->editColumn('created_at', fn (PaymentMethod $paymentMethod): string => $paymentMethod->created_at?->format('Y-m-d') ?? '')
+            ->addColumn('actions', fn (PaymentMethod $paymentMethod): string => view('payment-methods.partials.actions', compact('paymentMethod'))->render())
+            ->rawColumns(['is_active', 'actions'])
+            ->toJson();
+    }
+
     public function suppliers(): JsonResponse
     {
         abort_unless(auth()->user()?->can('suppliers.view'), 403);
@@ -89,15 +101,23 @@ class AdminDataTableController extends Controller
             ->toJson();
     }
 
-    public function purchases(): JsonResponse
+    public function purchases(Request $request): JsonResponse
     {
         abort_unless(auth()->user()?->can('purchases.view'), 403);
+
+        $shouldDefaultToToday = ! $request->has('date_from') && ! $request->has('date_to');
+        $dateFrom = $shouldDefaultToToday ? now()->toDateString() : $request->input('date_from');
+        $dateTo = $shouldDefaultToToday ? now()->toDateString() : $request->input('date_to');
 
         $query = Purchase::query()
             ->select('purchases.*', 'suppliers.name as supplier_name', 'warehouses.name as warehouse_name', 'users.name as user_name')
             ->leftJoin('suppliers', 'suppliers.id', '=', 'purchases.supplier_id')
             ->leftJoin('warehouses', 'warehouses.id', '=', 'purchases.warehouse_id')
-            ->leftJoin('users', 'users.id', '=', 'purchases.user_id');
+            ->leftJoin('users', 'users.id', '=', 'purchases.user_id')
+            ->when($dateFrom, fn ($query) => $query->whereDate('purchases.purchase_date', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->whereDate('purchases.purchase_date', '<=', $dateTo))
+            ->when($request->filled('supplier_id'), fn ($query) => $query->where('purchases.supplier_id', $request->integer('supplier_id')))
+            ->when($request->filled('user_id'), fn ($query) => $query->where('purchases.user_id', $request->integer('user_id')));
 
         return DataTables::eloquent($query)
             ->editColumn('purchase_date', fn (Purchase $purchase): string => $purchase->purchase_date?->format('Y-m-d') ?? '')
@@ -112,7 +132,7 @@ class AdminDataTableController extends Controller
         abort_unless(auth()->user()?->can('sales.view'), 403);
 
         $query = Sale::query()
-            ->select('sales.*', 'customers.name as customer_name', 'branches.name as branch_name', 'warehouses.name as warehouse_name', 'users.name as user_name')
+            ->select('sales.*', DB::raw('COALESCE(customers.name, sales.customer_name) as customer_name'), 'branches.name as branch_name', 'warehouses.name as warehouse_name', 'users.name as user_name')
             ->leftJoin('customers', 'customers.id', '=', 'sales.customer_id')
             ->leftJoin('branches', 'branches.id', '=', 'sales.branch_id')
             ->leftJoin('warehouses', 'warehouses.id', '=', 'sales.warehouse_id')
@@ -121,6 +141,11 @@ class AdminDataTableController extends Controller
         return DataTables::eloquent($query)
             ->editColumn('sale_date', fn (Sale $sale): string => $sale->sale_date?->format('Y-m-d H:i') ?? '')
             ->editColumn('total', fn (Sale $sale): string => money_format_decimal($sale->total))
+            ->addColumn('payments', fn (Sale $sale): string => $sale->payments()
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($payment): string => $payment->payment_method_name.' '.money_format_decimal($payment->amount))
+                ->implode(' / '))
             ->toJson();
     }
 
@@ -170,7 +195,8 @@ class AdminDataTableController extends Controller
             ->editColumn('stock', fn ($row): string => $this->stockBadge((int) $row->stock, (int) $row->minimum_stock, $row->measurement_unit_abbreviation))
             ->addColumn('presentations', fn ($row): string => $this->presentationBreakdown((int) $row->product_id, (int) $row->warehouse_id))
             ->addColumn('status', fn ($row): string => $this->statusBadge((bool) $row->product_is_active))
-            ->rawColumns(['stock', 'presentations', 'status'])
+            ->addColumn('actions', fn ($row): string => $this->stockActions((int) $row->product_id, (int) $row->warehouse_id))
+            ->rawColumns(['stock', 'presentations', 'status', 'actions'])
             ->toJson();
     }
 
@@ -179,20 +205,49 @@ class AdminDataTableController extends Controller
         abort_unless(auth()->user()?->can('inventory.view'), 403);
 
         $query = InventoryMovement::query()
-            ->select('inventory_movements.*', 'products.name as product_name', 'warehouses.name as warehouse_name', 'branches.name as branch_name', 'users.name as user_name')
-            ->leftJoin('products', 'products.id', '=', 'inventory_movements.product_id')
-            ->leftJoin('warehouses', 'warehouses.id', '=', 'inventory_movements.warehouse_id')
+            ->select([
+                'products.id as product_id',
+                'products.name as product_name',
+                'products.is_active as product_is_active',
+                'measurement_units.abbreviation as measurement_unit_abbreviation',
+                'categories.name as category_name',
+                'warehouses.id as warehouse_id',
+                'warehouses.name as warehouse_name',
+                'branches.name as branch_name',
+                DB::raw('COUNT(inventory_movements.id) as movements_count'),
+                DB::raw('SUM(CASE WHEN inventory_movements.quantity > 0 THEN inventory_movements.quantity ELSE 0 END) as entries'),
+                DB::raw('SUM(CASE WHEN inventory_movements.quantity < 0 THEN ABS(inventory_movements.quantity) ELSE 0 END) as exits'),
+                DB::raw('SUM(inventory_movements.quantity) as balance'),
+                DB::raw('MAX(inventory_movements.created_at) as last_movement_at'),
+            ])
+            ->join('products', 'products.id', '=', 'inventory_movements.product_id')
+            ->leftJoin('measurement_units', 'measurement_units.id', '=', 'products.measurement_unit_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->join('warehouses', 'warehouses.id', '=', 'inventory_movements.warehouse_id')
             ->leftJoin('branches', 'branches.id', '=', 'warehouses.branch_id')
-            ->leftJoin('users', 'users.id', '=', 'inventory_movements.user_id');
+            ->when(request()->filled('warehouse_id'), fn ($query) => $query->where('warehouses.id', request()->integer('warehouse_id')))
+            ->when(request()->filled('category_id'), fn ($query) => $query->where('products.category_id', request()->integer('category_id')))
+            ->when(request()->filled('product_id'), fn ($query) => $query->where('products.id', request()->integer('product_id')))
+            ->when(request()->filled('status'), fn ($query) => $query->where('products.is_active', request()->boolean('status')))
+            ->groupBy(
+                'products.id',
+                'products.name',
+                'products.is_active',
+                'measurement_units.abbreviation',
+                'categories.name',
+                'warehouses.id',
+                'warehouses.name',
+                'branches.name',
+            );
 
         return DataTables::eloquent($query)
-            ->editColumn('created_at', fn (InventoryMovement $movement): string => $movement->created_at?->format('Y-m-d H:i') ?? '')
-            ->editColumn('type', fn (InventoryMovement $movement): string => $movement->type instanceof InventoryMovementType ? $movement->type->label() : (string) $movement->type)
-            ->addColumn('presentation', fn (InventoryMovement $movement): string => $movement->presentation_name
-                ? $movement->presentation_name.' x '.$movement->units_per_package.' ('.abs((int) $movement->package_quantity).' empaques)'
-                : '-')
-            ->editColumn('quantity', fn (InventoryMovement $movement): string => '<span class="badge text-bg-'.($movement->quantity > 0 ? 'success' : 'danger').'">'.$movement->quantity.'</span>')
-            ->rawColumns(['quantity'])
+            ->editColumn('last_movement_at', fn ($row): string => $row->last_movement_at ? date('Y-m-d H:i', strtotime((string) $row->last_movement_at)) : '')
+            ->addColumn('status', fn ($row): string => $this->statusBadge((bool) $row->product_is_active))
+            ->editColumn('entries', fn ($row): string => number_format((int) $row->entries).' '.($row->measurement_unit_abbreviation ?? 'u'))
+            ->editColumn('exits', fn ($row): string => number_format((int) $row->exits).' '.($row->measurement_unit_abbreviation ?? 'u'))
+            ->editColumn('balance', fn ($row): string => '<span class="badge text-bg-'.(((int) $row->balance) > 0 ? 'primary' : 'secondary').'">'.number_format((int) $row->balance).' '.($row->measurement_unit_abbreviation ?? 'u').'</span>')
+            ->addColumn('actions', fn ($row): string => $this->kardexActions((int) $row->product_id, (int) $row->warehouse_id, (string) $row->product_name))
+            ->rawColumns(['status', 'balance', 'actions'])
             ->toJson();
     }
 
@@ -233,5 +288,42 @@ class AdminDataTableController extends Controller
         return $rows
             ->map(fn ($row): string => '<span class="badge text-bg-light me-1 mb-1">'.(int) $row->packages.' '.$row->presentation_name.' <span class="text-muted">('.(int) $row->units.' u.)</span></span>')
             ->implode('');
+    }
+
+    private function stockActions(int $productId, int $warehouseId): string
+    {
+        if (! auth()->user()?->can('inventory.movements')) {
+            return '';
+        }
+
+        $hasPackages = InventoryMovement::query()
+            ->select('presentation_id')
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('units_per_package', '>', 1)
+            ->groupBy('presentation_id')
+            ->havingRaw('SUM(package_quantity) > 0')
+            ->exists();
+
+        if (! $hasPackages) {
+            return '<span class="text-muted">-</span>';
+        }
+
+        $url = route('inventory.defragment', [
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+        ]);
+
+        return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Desfragmentar empaque">Desfragmentar</a>';
+    }
+
+    private function kardexActions(int $productId, int $warehouseId, string $productName): string
+    {
+        $url = route('inventory.kardex.show', [
+            'product' => $productId,
+            'warehouse_id' => $warehouseId,
+        ]);
+
+        return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Kardex - '.e($productName).'">Ver kardex</a>';
     }
 }

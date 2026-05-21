@@ -36,7 +36,7 @@ class StorePurchaseRequest extends FormRequest
             'items.*.product_id' => 'producto',
             'items.*.presentation_id' => 'presentacion',
             'items.*.package_quantity' => 'cantidad',
-            'items.*.unit_price' => 'precio unitario',
+            'items.*.unit_price' => 'precio de la presentacion',
         ];
     }
 }

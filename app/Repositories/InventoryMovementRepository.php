@@ -55,6 +55,26 @@ class InventoryMovementRepository
             ->sum('package_quantity');
     }
 
+    public function availablePresentationsForDefragmentation(int $productId, int $warehouseId): Collection
+    {
+        return InventoryMovement::query()
+            ->select([
+                'inventory_movements.presentation_id',
+                DB::raw('COALESCE(inventory_movements.presentation_name, presentations.name) as presentation_name'),
+                'inventory_movements.units_per_package',
+                DB::raw('SUM(inventory_movements.package_quantity) as packages'),
+                DB::raw('SUM(inventory_movements.quantity) as units'),
+            ])
+            ->join('presentations', 'presentations.id', '=', 'inventory_movements.presentation_id')
+            ->where('inventory_movements.product_id', $productId)
+            ->where('inventory_movements.warehouse_id', $warehouseId)
+            ->where('inventory_movements.units_per_package', '>', 1)
+            ->groupBy('inventory_movements.presentation_id', 'inventory_movements.presentation_name', 'presentations.name', 'inventory_movements.units_per_package')
+            ->havingRaw('SUM(inventory_movements.package_quantity) > 0')
+            ->orderBy('presentation_name')
+            ->get();
+    }
+
     public function create(array $data): InventoryMovement
     {
         return InventoryMovement::create($data);

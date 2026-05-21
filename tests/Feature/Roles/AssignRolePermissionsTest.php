@@ -12,6 +12,27 @@ class AssignRolePermissionsTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_role_and_permission_labels_are_displayed_in_spanish_without_changing_values(): void
+    {
+        $actor = User::factory()->create();
+        Permission::findOrCreate('roles.assign-permissions');
+        Permission::findOrCreate('categories.view');
+        $actor->givePermissionTo('roles.assign-permissions');
+
+        $role = Role::findOrCreate('manager');
+        $role->givePermissionTo('categories.view');
+
+        $response = $this
+            ->actingAs($actor)
+            ->get(route('roles.permissions.form', $role));
+
+        $response->assertOk();
+        $response->assertSee('Gerente');
+        $response->assertSee('Categorias');
+        $response->assertSee('Categorias: Ver');
+        $response->assertSee('value="categories.view"', false);
+    }
+
     public function test_role_permissions_can_be_saved_without_role_name(): void
     {
         $actor = User::factory()->create();

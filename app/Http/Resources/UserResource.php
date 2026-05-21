@@ -15,6 +15,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'is_active' => $this->is_active,
             'roles' => $this->roles->pluck('name')->values(),
+            'role_labels' => $this->roles->pluck('name')->map(fn (string $role): string => role_label($role))->values(),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

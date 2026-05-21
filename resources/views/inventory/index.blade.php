@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Existencias y movimientos de inventario')
 
 @section('content')
-    <x-ui.table-card title="Existencias por almacen">
+    <x-ui.table-card title="Existencias por almacen" data-refresh-container>
         <form class="stock-filter-bar" id="stock-filters" autocomplete="off" data-datatable-filters>
             <div>
                 <label class="form-label" for="stock-filter-warehouse">Almacen</label>
@@ -73,6 +73,7 @@
                     <th>Presentaciones</th>
                     <th>Estado</th>
                     <th class="text-end">Stock</th>
+                    <th class="text-end">Acciones</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -85,7 +86,8 @@
                 {"data":"category_name","name":"categories.name","defaultContent":"-"},
                 {"data":"presentations","name":"presentations","orderable":false,"searchable":false},
                 {"data":"status","name":"products.is_active","orderable":false,"searchable":false},
-                {"data":"stock","name":"stock","className":"text-end","searchable":false}
+                {"data":"stock","name":"stock","className":"text-end","searchable":false},
+                {"data":"actions","name":"actions","className":"text-end","orderable":false,"searchable":false}
             ]
         </script>
     </x-ui.table-card>

@@ -32,7 +32,7 @@
         @error('items.'.$index.'.package_quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </td>
     <td>
-        <input class="form-control text-end @error('items.'.$index.'.unit_price') is-invalid @enderror" name="items[{{ $index }}][unit_price]" type="number" min="0" step="0.01" value="{{ $item['unit_price'] ?? '' }}" data-unit-price required>
+        <input class="form-control text-end @error('items.'.$index.'.unit_price') is-invalid @enderror" name="items[{{ $index }}][unit_price]" type="number" min="0" step="0.01" value="{{ $item['unit_price'] ?? '' }}" data-unit-price data-auto-price="{{ isset($item['unit_price']) ? '0' : '1' }}" required>
         @error('items.'.$index.'.unit_price')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </td>
     <td class="text-end fw-semibold" data-line-subtotal>0.00</td>

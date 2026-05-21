@@ -33,7 +33,7 @@
                     <th>Presentacion</th>
                     <th class="text-end">Cantidad</th>
                     <th class="text-end">Unidades</th>
-                    <th class="text-end">Precio unitario</th>
+                    <th class="text-end">Precio presentacion</th>
                     <th class="text-end">Subtotal</th>
                 </tr>
             </thead>

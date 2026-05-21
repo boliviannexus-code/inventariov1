@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\InventoryMovementController;
 use App\Http\Controllers\Web\KardexController;
 use App\Http\Controllers\Web\MeasurementUnitController;
+use App\Http\Controllers\Web\PaymentMethodController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PointOfSaleController;
 use App\Http\Controllers\Web\PosController;
@@ -35,12 +36,18 @@ Route::middleware('auth')->group(function (): void {
     Route::resource('point-of-sales', PointOfSaleController::class);
     Route::get('pos', [PosController::class, 'index'])->middleware('permission:pos.access')->name('pos.index');
     Route::post('pos/open', [PosController::class, 'open'])->middleware('permission:pos.access')->name('pos.open');
+    Route::post('pos/close', [PosController::class, 'close'])->middleware('permission:pos.access')->name('pos.close');
     Route::post('pos/sales', [PosController::class, 'sale'])->middleware('permission:pos.access')->name('pos.sales.store');
+    Route::post('pos/expenses', [PosController::class, 'expense'])->middleware('permission:pos.access')->name('pos.expenses.store');
     Route::get('inventory', [InventoryMovementController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.index');
+    Route::get('inventory/defragment', [InventoryMovementController::class, 'defragment'])->middleware('permission:inventory.movements')->name('inventory.defragment');
+    Route::post('inventory/defragment', [InventoryMovementController::class, 'storeDefragmentation'])->middleware('permission:inventory.movements')->name('inventory.defragment.store');
     Route::get('inventory/kardex', [KardexController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.kardex');
+    Route::get('inventory/kardex/{product}', [KardexController::class, 'show'])->middleware('permission:inventory.view')->name('inventory.kardex.show');
     Route::resource('suppliers', SupplierController::class);
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show']);
     Route::get('sales', [SaleController::class, 'index'])->middleware('permission:sales.view')->name('sales.index');
+    Route::get('sales/cash-registers/{cashRegister}', [SaleController::class, 'show'])->middleware('permission:sales.view')->name('sales.cash-registers.show');
     Route::prefix('datatables')->name('datatables.')->group(function (): void {
         Route::get('products', [AdminDataTableController::class, 'products'])->name('products');
         Route::get('product-presentations', [AdminDataTableController::class, 'productPresentations'])->name('product-presentations');
@@ -51,9 +58,11 @@ Route::middleware('auth')->group(function (): void {
         Route::get('stock', [AdminDataTableController::class, 'stock'])->name('stock');
         Route::get('kardex', [AdminDataTableController::class, 'kardex'])->name('kardex');
         Route::get('measurement-units', [AdminDataTableController::class, 'measurementUnits'])->name('measurement-units');
+        Route::get('payment-methods', [AdminDataTableController::class, 'paymentMethods'])->name('payment-methods');
     });
     Route::resource('categories', CategoryController::class);
     Route::resource('measurement-units', MeasurementUnitController::class);
+    Route::resource('payment-methods', PaymentMethodController::class);
     Route::resource('product-presentations', ProductPresentationController::class);
     Route::resource('products', ProductController::class);
     Route::prefix('users')->name('users.')->group(function (): void {

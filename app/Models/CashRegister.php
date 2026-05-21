@@ -6,6 +6,7 @@ use Database\Factories\CashRegisterFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CashRegister extends Model
 {
@@ -46,5 +47,15 @@ class CashRegister extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(CashRegisterExpense::class);
+    }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
     }
 }

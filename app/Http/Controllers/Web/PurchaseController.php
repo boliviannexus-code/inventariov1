@@ -8,6 +8,7 @@ use App\Models\Presentation;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\PurchaseService;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,15 @@ class PurchaseController extends Controller
     {
         abort_unless(auth()->user()?->can('purchases.view'), 403);
 
-        return view('purchases.index');
+        return view('purchases.index', [
+            'defaultDate' => now()->toDateString(),
+            'suppliers' => Supplier::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'company_name']),
+            'users' => User::query()
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ]);
     }
 
     public function create(): View
