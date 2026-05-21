@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\InventoryMovement;
 use App\Models\MeasurementUnit;
+use App\Models\PaymentMethod;
 use App\Models\Presentation;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -77,6 +78,18 @@ class AdminDataTableController extends Controller
             ->toJson();
     }
 
+    public function paymentMethods(): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('payment-methods.view'), 403);
+
+        return DataTables::eloquent(PaymentMethod::query()->select('payment_methods.*'))
+            ->editColumn('is_active', fn (PaymentMethod $paymentMethod): string => $this->statusBadge($paymentMethod->is_active))
+            ->editColumn('created_at', fn (PaymentMethod $paymentMethod): string => $paymentMethod->created_at?->format('Y-m-d') ?? '')
+            ->addColumn('actions', fn (PaymentMethod $paymentMethod): string => view('payment-methods.partials.actions', compact('paymentMethod'))->render())
+            ->rawColumns(['is_active', 'actions'])
+            ->toJson();
+    }
+
     public function suppliers(): JsonResponse
     {
         abort_unless(auth()->user()?->can('suppliers.view'), 403);
@@ -112,7 +125,7 @@ class AdminDataTableController extends Controller
         abort_unless(auth()->user()?->can('sales.view'), 403);
 
         $query = Sale::query()
-            ->select('sales.*', 'customers.name as customer_name', 'branches.name as branch_name', 'warehouses.name as warehouse_name', 'users.name as user_name')
+            ->select('sales.*', DB::raw('COALESCE(customers.name, sales.customer_name) as customer_name'), 'branches.name as branch_name', 'warehouses.name as warehouse_name', 'users.name as user_name')
             ->leftJoin('customers', 'customers.id', '=', 'sales.customer_id')
             ->leftJoin('branches', 'branches.id', '=', 'sales.branch_id')
             ->leftJoin('warehouses', 'warehouses.id', '=', 'sales.warehouse_id')
@@ -121,6 +134,11 @@ class AdminDataTableController extends Controller
         return DataTables::eloquent($query)
             ->editColumn('sale_date', fn (Sale $sale): string => $sale->sale_date?->format('Y-m-d H:i') ?? '')
             ->editColumn('total', fn (Sale $sale): string => money_format_decimal($sale->total))
+            ->addColumn('payments', fn (Sale $sale): string => $sale->payments()
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($payment): string => $payment->payment_method_name.' '.money_format_decimal($payment->amount))
+                ->implode(' / '))
             ->toJson();
     }
 
@@ -170,7 +188,8 @@ class AdminDataTableController extends Controller
             ->editColumn('stock', fn ($row): string => $this->stockBadge((int) $row->stock, (int) $row->minimum_stock, $row->measurement_unit_abbreviation))
             ->addColumn('presentations', fn ($row): string => $this->presentationBreakdown((int) $row->product_id, (int) $row->warehouse_id))
             ->addColumn('status', fn ($row): string => $this->statusBadge((bool) $row->product_is_active))
-            ->rawColumns(['stock', 'presentations', 'status'])
+            ->addColumn('actions', fn ($row): string => $this->stockActions((int) $row->product_id, (int) $row->warehouse_id))
+            ->rawColumns(['stock', 'presentations', 'status', 'actions'])
             ->toJson();
     }
 
@@ -233,5 +252,32 @@ class AdminDataTableController extends Controller
         return $rows
             ->map(fn ($row): string => '<span class="badge text-bg-light me-1 mb-1">'.(int) $row->packages.' '.$row->presentation_name.' <span class="text-muted">('.(int) $row->units.' u.)</span></span>')
             ->implode('');
+    }
+
+    private function stockActions(int $productId, int $warehouseId): string
+    {
+        if (! auth()->user()?->can('inventory.movements')) {
+            return '';
+        }
+
+        $hasPackages = InventoryMovement::query()
+            ->select('presentation_id')
+            ->where('product_id', $productId)
+            ->where('warehouse_id', $warehouseId)
+            ->where('units_per_package', '>', 1)
+            ->groupBy('presentation_id')
+            ->havingRaw('SUM(package_quantity) > 0')
+            ->exists();
+
+        if (! $hasPackages) {
+            return '<span class="text-muted">-</span>';
+        }
+
+        $url = route('inventory.defragment', [
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+        ]);
+
+        return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Desfragmentar empaque">Desfragmentar</a>';
     }
 }

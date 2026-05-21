@@ -13,6 +13,8 @@ class Sale extends Model
 
     protected $fillable = [
         'customer_id',
+        'customer_name',
+        'customer_document_number',
         'branch_id',
         'warehouse_id',
         'user_id',
@@ -74,5 +76,10 @@ class Sale extends Model
     public function details(): HasMany
     {
         return $this->hasMany(SaleDetail::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalePayment::class);
     }
 }

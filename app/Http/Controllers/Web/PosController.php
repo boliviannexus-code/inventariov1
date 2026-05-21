@@ -7,6 +7,7 @@ use App\Http\Requests\OpenCashRegisterRequest;
 use App\Http\Requests\StorePosSaleRequest;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
+use App\Models\PaymentMethod;
 use App\Models\PointOfSale;
 use App\Models\Product;
 use App\Services\CashRegisterService;
@@ -32,7 +33,14 @@ class PosController extends Controller
         return view('pos.index', [
             'openRegister' => $openRegister,
             'pointOfSales' => $this->pointOfSalesFor($request),
-            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'document_number']),
+            'customers' => Customer::query()
+                ->select(['id', 'name', 'document_number'])
+                ->withCount('sales')
+                ->where('is_active', true)
+                ->whereNotNull('document_number')
+                ->orderBy('name')
+                ->get(),
+            'paymentMethods' => PaymentMethod::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'products' => Product::query()->with('measurementUnit')->where('is_active', true)->orderBy('name')->get(),
             'stockAvailability' => $openRegister ? $this->stockAvailability((int) $openRegister->pointOfSale->warehouse_id) : [],
         ]);

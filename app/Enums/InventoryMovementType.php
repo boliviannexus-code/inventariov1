@@ -11,6 +11,8 @@ enum InventoryMovementType: string
     case AdjustmentOut = 'adjustment_out';
     case TransferIn = 'transfer_in';
     case TransferOut = 'transfer_out';
+    case DefragmentOut = 'defragment_out';
+    case DefragmentIn = 'defragment_in';
 
     public function label(): string
     {
@@ -22,6 +24,8 @@ enum InventoryMovementType: string
             self::AdjustmentOut => 'Salida manual',
             self::TransferIn => 'Ingreso por traspaso',
             self::TransferOut => 'Salida por traspaso',
+            self::DefragmentOut => 'Desfragmentacion de empaque',
+            self::DefragmentIn => 'Ingreso por desfragmentacion',
         };
     }
 }

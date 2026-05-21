@@ -22,10 +22,12 @@ class AdminDataTablesTest extends TestCase
             'product-presentations.view',
             'categories.view',
             'measurement-units.view',
+            'payment-methods.view',
             'suppliers.view',
             'purchases.view',
             'sales.view',
             'inventory.view',
+            'inventory.movements',
         ];
 
         foreach ($permissions as $permission) {
@@ -44,6 +46,7 @@ class AdminDataTablesTest extends TestCase
             'datatables.product-presentations',
             'datatables.categories',
             'datatables.measurement-units',
+            'datatables.payment-methods',
             'datatables.suppliers',
             'datatables.purchases',
             'datatables.sales',

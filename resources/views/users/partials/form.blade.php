@@ -46,7 +46,7 @@
                 <div class="col-md-4">
                     <div class="form-check border rounded p-2 ps-5 bg-light">
                         <input class="form-check-input" id="role-{{ $role->id }}" name="roles[]" type="checkbox" value="{{ $role->name }}" @checked($selectedRoles->contains($role->name))>
-                        <label class="form-check-label" for="role-{{ $role->id }}">{{ $role->name }}</label>
+                        <label class="form-check-label" for="role-{{ $role->id }}">{{ role_label($role->name) }}</label>
                     </div>
                 </div>
             @endforeach

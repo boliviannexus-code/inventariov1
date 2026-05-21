@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\InventoryMovementController;
 use App\Http\Controllers\Web\KardexController;
 use App\Http\Controllers\Web\MeasurementUnitController;
+use App\Http\Controllers\Web\PaymentMethodController;
 use App\Http\Controllers\Web\PermissionController;
 use App\Http\Controllers\Web\PointOfSaleController;
 use App\Http\Controllers\Web\PosController;
@@ -37,6 +38,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('pos/open', [PosController::class, 'open'])->middleware('permission:pos.access')->name('pos.open');
     Route::post('pos/sales', [PosController::class, 'sale'])->middleware('permission:pos.access')->name('pos.sales.store');
     Route::get('inventory', [InventoryMovementController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.index');
+    Route::get('inventory/defragment', [InventoryMovementController::class, 'defragment'])->middleware('permission:inventory.movements')->name('inventory.defragment');
+    Route::post('inventory/defragment', [InventoryMovementController::class, 'storeDefragmentation'])->middleware('permission:inventory.movements')->name('inventory.defragment.store');
     Route::get('inventory/kardex', [KardexController::class, 'index'])->middleware('permission:inventory.view')->name('inventory.kardex');
     Route::resource('suppliers', SupplierController::class);
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show']);
@@ -51,9 +54,11 @@ Route::middleware('auth')->group(function (): void {
         Route::get('stock', [AdminDataTableController::class, 'stock'])->name('stock');
         Route::get('kardex', [AdminDataTableController::class, 'kardex'])->name('kardex');
         Route::get('measurement-units', [AdminDataTableController::class, 'measurementUnits'])->name('measurement-units');
+        Route::get('payment-methods', [AdminDataTableController::class, 'paymentMethods'])->name('payment-methods');
     });
     Route::resource('categories', CategoryController::class);
     Route::resource('measurement-units', MeasurementUnitController::class);
+    Route::resource('payment-methods', PaymentMethodController::class);
     Route::resource('product-presentations', ProductPresentationController::class);
     Route::resource('products', ProductController::class);
     Route::prefix('users')->name('users.')->group(function (): void {

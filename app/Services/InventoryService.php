@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Enums\InventoryMovementType;
 use App\Models\Presentation;
+use App\Models\Product;
+use App\Models\Warehouse;
 use App\Repositories\InventoryMovementRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -57,6 +59,79 @@ class InventoryService
         });
 
         return $map;
+    }
+
+    public function defragmentPackage(array $data, int $userId): void
+    {
+        $productId = (int) $data['product_id'];
+        $warehouseId = (int) $data['warehouse_id'];
+        $presentationId = (int) $data['presentation_id'];
+        $packageQuantity = (int) $data['package_quantity'];
+        $notes = $data['notes'] ?? null;
+
+        if ($packageQuantity < 1) {
+            throw ValidationException::withMessages([
+                'package_quantity' => 'La cantidad debe ser al menos 1.',
+            ]);
+        }
+
+        DB::transaction(function () use ($productId, $warehouseId, $presentationId, $packageQuantity, $notes, $userId): void {
+            $presentation = Presentation::query()->findOrFail($presentationId);
+
+            if ($presentation->units_per_package <= 1) {
+                throw ValidationException::withMessages([
+                    'presentation_id' => 'Selecciona una presentacion mayor a una unidad.',
+                ]);
+            }
+
+            $this->ensurePresentationStock([
+                'product_id' => $productId,
+                'presentation_id' => $presentation->id,
+                'package_quantity' => $packageQuantity,
+            ], $warehouseId);
+
+            $unitPresentation = $this->unitPresentation();
+            $units = $packageQuantity * $presentation->units_per_package;
+            $referenceId = now()->format('ymdHis').random_int(100, 999);
+            $productName = Product::query()->whereKey($productId)->value('name') ?? 'Producto';
+            $warehouseName = Warehouse::query()->whereKey($warehouseId)->value('name') ?? 'almacen';
+            $movementNotes = trim(($notes ? $notes.' | ' : '')."Desfragmentacion controlada: {$packageQuantity} {$presentation->name} de {$productName} en {$warehouseName}.");
+
+            $this->movements->create([
+                'product_id' => $productId,
+                'presentation_id' => $presentation->id,
+                'presentation_name' => $presentation->name,
+                'warehouse_id' => $warehouseId,
+                'user_id' => $userId,
+                'type' => InventoryMovementType::DefragmentOut,
+                'quantity' => $units * -1,
+                'package_quantity' => $packageQuantity * -1,
+                'units_per_package' => $presentation->units_per_package,
+                'reference_id' => $referenceId,
+                'reference_type' => 'stock_defragmentation',
+                'notes' => $movementNotes,
+            ]);
+
+            $this->movements->create([
+                'product_id' => $productId,
+                'presentation_id' => $unitPresentation->id,
+                'presentation_name' => $unitPresentation->name,
+                'warehouse_id' => $warehouseId,
+                'user_id' => $userId,
+                'type' => InventoryMovementType::DefragmentIn,
+                'quantity' => $units,
+                'package_quantity' => $units,
+                'units_per_package' => 1,
+                'reference_id' => $referenceId,
+                'reference_type' => 'stock_defragmentation',
+                'notes' => $movementNotes,
+            ]);
+        });
+    }
+
+    public function defragmentablePresentations(int $productId, int $warehouseId): Collection
+    {
+        return $this->movements->availablePresentationsForDefragmentation($productId, $warehouseId);
     }
 
     private function registerAdjustmentIn(int $warehouseId, array $items, ?string $notes, int $userId): void
@@ -220,5 +295,25 @@ class InventoryService
         }
 
         return array_values($normalized);
+    }
+
+    private function unitPresentation(): Presentation
+    {
+        $unit = Presentation::query()
+            ->where('units_per_package', 1)
+            ->where('name', 'Unidad')
+            ->first();
+
+        if ($unit) {
+            return $unit;
+        }
+
+        return Presentation::query()
+            ->where('units_per_package', 1)
+            ->orderBy('name')
+            ->firstOrCreate(
+                ['name' => 'Unidad'],
+                ['units_per_package' => 1, 'is_active' => true]
+            );
     }
 }

@@ -16,7 +16,7 @@
             <tbody>
                 @forelse ($roles as $role)
                     <tr>
-                        <td>{{ $role->name }}</td>
+                        <td>{{ role_label($role->name) }}</td>
                         <td>{{ $role->users_count }}</td>
                         <td>{{ $role->permissions_count }}</td>
                         <td>{{ $role->created_at?->format('Y-m-d') }}</td>

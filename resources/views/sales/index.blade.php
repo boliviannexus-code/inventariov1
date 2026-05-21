@@ -22,6 +22,7 @@
                     <th>Sucursal</th>
                     <th>Almacen</th>
                     <th>Usuario</th>
+                    <th>Pago</th>
                     <th>Estado</th>
                     <th class="text-end">Total</th>
                 </tr>
@@ -33,10 +34,11 @@
                 {"data":"id","name":"sales.id"},
                 {"data":"sale_date","name":"sales.sale_date"},
                 {"data":"receipt_number","name":"sales.receipt_number"},
-                {"data":"customer_name","name":"customers.name","defaultContent":"-"},
+                {"data":"customer_name","name":"sales.customer_name","defaultContent":"-"},
                 {"data":"branch_name","name":"branches.name"},
                 {"data":"warehouse_name","name":"warehouses.name"},
                 {"data":"user_name","name":"users.name","defaultContent":"-"},
+                {"data":"payments","name":"payments","orderable":false,"searchable":false,"defaultContent":"-"},
                 {"data":"status","name":"sales.status"},
                 {"data":"total","name":"sales.total","className":"text-end"}
             ]
