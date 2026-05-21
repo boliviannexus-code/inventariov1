@@ -68,7 +68,7 @@ class PurchaseCreateTest extends TestCase
                         'product_id' => $product->id,
                         'presentation_id' => $presentation->id,
                         'package_quantity' => 2,
-                        'unit_price' => 25.50,
+                        'unit_price' => 255,
                     ],
                 ],
             ]);
@@ -79,7 +79,7 @@ class PurchaseCreateTest extends TestCase
 
         $this->assertSame($branch->id.'-'.$warehouse->id.'-000001', $purchase->reference);
         $this->assertSame(1, $purchase->sequence_number);
-        $this->assertSame('51.00', $purchase->total);
+        $this->assertSame('510.00', $purchase->total);
 
         $this->assertDatabaseHas('purchase_details', [
             'purchase_id' => $purchase->id,
@@ -89,6 +89,8 @@ class PurchaseCreateTest extends TestCase
             'package_quantity' => 2,
             'units_per_package' => 10,
             'quantity' => 20,
+            'unit_price' => '255.00',
+            'subtotal' => '510.00',
         ]);
 
         $this->assertDatabaseHas('inventory_movements', [

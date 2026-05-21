@@ -65,7 +65,7 @@
                                     <li class="nav-item {{ request()->routeIs('sales.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('sales.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-receipt"></i></span>
-                                            <span class="nav-link-title">Ventas registradas</span>
+                                            <span class="nav-link-title">Cajas y ventas</span>
                                         </a>
                                     </li>
                                 @endcan

@@ -127,6 +127,16 @@
                     <div class="card">
                         <div class="card-header">
                             <h3 class="card-title">Cobro</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashCloseModal">
+                                    <i class="ti ti-lock"></i>
+                                    Cerrar caja
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#cashExpenseModal">
+                                    <i class="ti ti-cash-banknote-off"></i>
+                                    Egreso
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
                             @if (empty($stockAvailability))
@@ -181,6 +191,19 @@
                                 <span>Total</span>
                                 <strong data-pos-total>0.00</strong>
                             </div>
+
+                            @if ($cashSummary)
+                                <div class="border rounded p-3 mt-3">
+                                    <div class="d-flex justify-content-between small text-body-secondary">
+                                        <span>Efectivo en caja</span>
+                                        <strong class="text-body">{{ money_format_decimal($cashSummary['available']) }}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-body-secondary mt-1">
+                                        <span>Egresos</span>
+                                        <span>{{ money_format_decimal($cashSummary['expenses']) }}</span>
+                                    </div>
+                                </div>
+                            @endif
 
                             <div class="mt-4" data-pos-payment-section>
                                 <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
@@ -290,6 +313,267 @@
                 </div>
             </template>
         </form>
+
+        <div class="modal modal-blur fade" id="cashExpenseModal" tabindex="-1" aria-labelledby="cashExpenseModalTitle" aria-hidden="true" @if ($errors->cashExpense->any()) data-show-cash-expense-modal @endif>
+            <div class="modal-dialog modal-dialog-centered">
+                <form class="modal-content" method="POST" action="{{ route('pos.expenses.store') }}" autocomplete="off" novalidate>
+                    @csrf
+
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="cashExpenseModalTitle">Registrar egreso</h2>
+                        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="alert alert-info mb-3">
+                            Disponible en efectivo: <strong>{{ money_format_decimal($cashSummary['available'] ?? 0) }}</strong>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="expense_responsible_name">Encargado</label>
+                            <input
+                                class="form-control @error('responsible_name', 'cashExpense') is-invalid @enderror"
+                                id="expense_responsible_name"
+                                name="responsible_name"
+                                type="text"
+                                value="{{ old('responsible_name', auth()->user()?->name) }}"
+                                maxlength="255"
+                                required
+                            >
+                            @error('responsible_name', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="expense_detail">Detalle</label>
+                            <textarea
+                                class="form-control @error('detail', 'cashExpense') is-invalid @enderror"
+                                id="expense_detail"
+                                name="detail"
+                                rows="3"
+                                maxlength="1000"
+                                required
+                            >{{ old('detail') }}</textarea>
+                            @error('detail', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="expense_amount">Monto</label>
+                            <input
+                                class="form-control text-end @error('amount', 'cashExpense') is-invalid @enderror"
+                                id="expense_amount"
+                                name="amount"
+                                type="number"
+                                min="0.01"
+                                max="{{ number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '') }}"
+                                step="0.01"
+                                value="{{ old('amount') }}"
+                                required
+                            >
+                            @error('amount', 'cashExpense')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+                        <button class="btn btn-danger" type="submit">
+                            <i class="ti ti-check"></i>
+                            Registrar egreso
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal modal-blur fade" id="cashCloseModal" tabindex="-1" aria-labelledby="cashCloseModalTitle" aria-hidden="true" @if ($errors->cashClose->any()) data-show-cash-close-modal @endif>
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <form class="modal-content" method="POST" action="{{ route('pos.close') }}" autocomplete="off" novalidate>
+                    @csrf
+
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="cashCloseModalTitle">Cierre de caja</h2>
+                        <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-lg-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-body-secondary small">Base inicial</div>
+                                    <div class="h3 mb-0">{{ money_format_decimal($cashSummary['opening'] ?? 0) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-body-secondary small">Ventas</div>
+                                    <div class="h3 mb-0">{{ money_format_decimal($cashSummary['sales_total'] ?? 0) }}</div>
+                                    <div class="text-body-secondary small">{{ $cashSummary['sales_count'] ?? 0 }} comprobante(s)</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-body-secondary small">Egresos</div>
+                                    <div class="h3 mb-0">{{ money_format_decimal($cashSummary['expenses'] ?? 0) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-lg-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-body-secondary small">Efectivo esperado</div>
+                                    <div class="h3 mb-0">{{ money_format_decimal($cashSummary['available'] ?? 0) }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion mt-3" id="cashCloseDetails">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cashClosePaymentsHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cashClosePayments" aria-expanded="false" aria-controls="cashClosePayments">
+                                        Resumen por metodo de pago
+                                    </button>
+                                </h2>
+                                <div class="accordion-collapse collapse" id="cashClosePayments" aria-labelledby="cashClosePaymentsHeading" data-bs-parent="#cashCloseDetails">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-vcenter mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Metodo</th>
+                                                        <th class="text-end">Pagos</th>
+                                                        <th class="text-end">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @forelse (($cashSummary['payments'] ?? []) as $payment)
+                                                        <tr>
+                                                            <td>{{ $payment['name'] }}</td>
+                                                            <td class="text-end">{{ $payment['payments_count'] }}</td>
+                                                            <td class="text-end fw-semibold">{{ money_format_decimal($payment['total']) }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td class="text-center text-body-secondary" colspan="3">Sin pagos registrados.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cashCloseSalesHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cashCloseSales" aria-expanded="false" aria-controls="cashCloseSales">
+                                        Detalle de ventas
+                                    </button>
+                                </h2>
+                                <div class="accordion-collapse collapse" id="cashCloseSales" aria-labelledby="cashCloseSalesHeading" data-bs-parent="#cashCloseDetails">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-vcenter mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Comprobante</th>
+                                                        <th>Hora</th>
+                                                        <th>Pagos</th>
+                                                        <th class="text-end">Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @forelse (($cashSummary['sales'] ?? []) as $sale)
+                                                        <tr>
+                                                            <td class="fw-semibold">{{ $sale->receipt_number }}</td>
+                                                            <td>{{ $sale->sale_date?->format('H:i') }}</td>
+                                                            <td>
+                                                                @foreach ($sale->payments as $payment)
+                                                                    <span class="badge bg-blue-lt me-1">{{ $payment->payment_method_name }} {{ money_format_decimal($payment->amount) }}</span>
+                                                                @endforeach
+                                                            </td>
+                                                            <td class="text-end fw-semibold">{{ money_format_decimal($sale->total) }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td class="text-center text-body-secondary" colspan="4">Sin ventas registradas.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="cashCloseExpensesHeading">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cashCloseExpenses" aria-expanded="false" aria-controls="cashCloseExpenses">
+                                        Detalle de egresos
+                                    </button>
+                                </h2>
+                                <div class="accordion-collapse collapse" id="cashCloseExpenses" aria-labelledby="cashCloseExpensesHeading" data-bs-parent="#cashCloseDetails">
+                                    <div class="accordion-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-vcenter mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Hora</th>
+                                                        <th>Encargado</th>
+                                                        <th>Detalle</th>
+                                                        <th class="text-end">Monto</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @forelse (($cashSummary['expense_details'] ?? []) as $expense)
+                                                        <tr>
+                                                            <td>{{ $expense->spent_at?->format('H:i') }}</td>
+                                                            <td>{{ $expense->responsible_name }}</td>
+                                                            <td>{{ $expense->detail }}</td>
+                                                            <td class="text-end fw-semibold">{{ money_format_decimal($expense->amount) }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td class="text-center text-body-secondary" colspan="4">Sin egresos registrados.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-3 align-items-end">
+                            <div class="col-md-6">
+                                <label class="form-label" for="closing_amount">Efectivo contado</label>
+                                <input
+                                    class="form-control form-control-lg text-end @error('closing_amount', 'cashClose') is-invalid @enderror"
+                                    id="closing_amount"
+                                    name="closing_amount"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value="{{ old('closing_amount', number_format((float) ($cashSummary['available'] ?? 0), 2, '.', '')) }}"
+                                    required
+                                >
+                                @error('closing_amount', 'cashClose')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-warning mb-0">
+                                    Al confirmar, la caja quedara cerrada y deberas abrir una nueva para seguir vendiendo.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-link link-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="ti ti-lock-check"></i>
+                            Confirmar cierre
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     @else
         <div class="card form-panel">
             <div class="card-header">

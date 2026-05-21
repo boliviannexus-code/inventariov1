@@ -317,9 +317,12 @@ function updatePurchaseRow(row) {
     const unitsPerPackage = Number(presentationOption?.dataset.units || 0);
     const unitLabel = productOption?.dataset.unit || 'u.';
     const totalUnits = quantity * unitsPerPackage;
+    const basePrice = Number(productOption?.dataset.price || 0);
+    const shouldAutoPrice = unitPrice && (unitPrice.dataset.autoPrice === '1' || !unitPrice.value);
 
-    if (unitPrice && !unitPrice.value && productOption?.dataset.price) {
-        unitPrice.value = Number(productOption.dataset.price).toFixed(2);
+    if (unitPrice && shouldAutoPrice && basePrice >= 0 && unitsPerPackage > 0) {
+        unitPrice.value = (basePrice * unitsPerPackage).toFixed(2);
+        unitPrice.dataset.autoPrice = '1';
         price = Math.max(0, rowNumberValue(row, '[data-unit-price]'));
     }
 
@@ -375,12 +378,27 @@ function initPurchaseForm() {
                 refreshPurchaseReference(form);
             }
 
+            if (event.target.closest('[data-purchase-product], [data-purchase-presentation]')) {
+                const row = event.target.closest('[data-purchase-item-row]');
+                const unitPrice = row?.querySelector('[data-unit-price]');
+
+                if (unitPrice) {
+                    unitPrice.dataset.autoPrice = '1';
+                }
+            }
+
             if (event.target.closest('[data-purchase-product], [data-purchase-presentation], [data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
         });
 
         form.addEventListener('input', (event) => {
+            const unitPrice = event.target.closest('[data-unit-price]');
+
+            if (unitPrice) {
+                unitPrice.dataset.autoPrice = '0';
+            }
+
             if (event.target.closest('[data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
@@ -956,6 +974,26 @@ function initUserDropdowns() {
     });
 }
 
+function initCashExpenseModal() {
+    const modal = document.querySelector('[data-show-cash-expense-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+function initCashCloseModal() {
+    const modal = document.querySelector('[data-show-cash-close-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
@@ -964,6 +1002,8 @@ syncPointSaleWarehouse();
 initPosSaleForm();
 initDefragmentForms();
 initUserDropdowns();
+initCashExpenseModal();
+initCashCloseModal();
 initAdminDataTables();
 
 document.addEventListener('click', (event) => {

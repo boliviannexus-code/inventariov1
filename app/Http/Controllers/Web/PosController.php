@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CloseCashRegisterRequest;
 use App\Http\Requests\OpenCashRegisterRequest;
+use App\Http\Requests\StoreCashRegisterExpenseRequest;
 use App\Http\Requests\StorePosSaleRequest;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
@@ -43,6 +45,7 @@ class PosController extends Controller
             'paymentMethods' => PaymentMethod::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'products' => Product::query()->with('measurementUnit')->where('is_active', true)->orderBy('name')->get(),
             'stockAvailability' => $openRegister ? $this->stockAvailability((int) $openRegister->pointOfSale->warehouse_id) : [],
+            'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : null,
         ]);
     }
 
@@ -66,6 +69,24 @@ class PosController extends Controller
         return redirect()
             ->route('pos.index')
             ->with('success', 'Venta registrada correctamente. Comprobante: '.$sale->receipt_number);
+    }
+
+    public function expense(StoreCashRegisterExpenseRequest $request): RedirectResponse
+    {
+        $expense = $this->cashRegisters->registerExpense($request->validated(), $request->user());
+
+        return redirect()
+            ->route('pos.index')
+            ->with('success', 'Egreso registrado correctamente por '.money_format_decimal($expense->amount).'.');
+    }
+
+    public function close(CloseCashRegisterRequest $request): RedirectResponse
+    {
+        $cashRegister = $this->cashRegisters->closeForUser($request->validated(), $request->user());
+
+        return redirect()
+            ->route('pos.index')
+            ->with('success', 'Caja cerrada correctamente en '.$cashRegister->pointOfSale?->name.'.');
     }
 
     private function pointOfSalesFor(Request $request)

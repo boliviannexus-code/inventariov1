@@ -1,47 +1,62 @@
 @extends('layouts.admin')
 
-@section('title', 'Ventas | Inventario POS')
-@section('page-title', 'Ventas')
-@section('page-subtitle', 'Listado administrativo de ventas')
+@section('title', 'Cajas y ventas | Inventario POS')
+@section('page-title', 'Cajas y ventas')
+@section('page-subtitle', 'Ventas agrupadas por cada apertura de caja')
 
 @section('content')
-    <x-ui.table-card title="Listado de ventas">
-        <table
-            class="table table-hover align-middle"
-            data-datatable
-            data-url="{{ route('datatables.sales') }}"
-            data-order='[[0,"desc"]]'
-            data-columns-id="sales-table-columns"
-        >
+    <x-ui.table-card title="Listado de cajas">
+        <table class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Comprobante</th>
-                    <th>Cliente</th>
-                    <th>Sucursal</th>
-                    <th>Almacen</th>
+                    <th>Apertura</th>
+                    <th>Cierre</th>
+                    <th>Punto de venta</th>
                     <th>Usuario</th>
-                    <th>Pago</th>
                     <th>Estado</th>
-                    <th class="text-end">Total</th>
+                    <th class="text-end">Ventas</th>
+                    <th class="text-end">Total vendido</th>
+                    <th class="text-end">Egresos</th>
+                    <th class="text-end">Cierre contado</th>
+                    <th class="text-end"></th>
                 </tr>
             </thead>
-            <tbody></tbody>
+            <tbody>
+                @forelse ($cashRegisters as $cashRegister)
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ $cashRegister->opened_at?->format('Y-m-d H:i') }}</div>
+                            <div class="text-body-secondary small">{{ $cashRegister->branch?->name }}</div>
+                        </td>
+                        <td>{{ $cashRegister->closed_at?->format('Y-m-d H:i') ?? '-' }}</td>
+                        <td>{{ $cashRegister->pointOfSale?->name ?? '-' }}</td>
+                        <td>{{ $cashRegister->user?->name ?? '-' }}</td>
+                        <td>
+                            <span class="badge text-bg-{{ $cashRegister->status === 'open' ? 'success' : 'secondary' }}">
+                                {{ $cashRegister->status === 'open' ? 'Abierta' : 'Cerrada' }}
+                            </span>
+                        </td>
+                        <td class="text-end">{{ $cashRegister->sales_count }}</td>
+                        <td class="text-end fw-semibold">{{ money_format_decimal($cashRegister->sales_total ?? 0) }}</td>
+                        <td class="text-end">{{ money_format_decimal($cashRegister->expenses_total ?? 0) }}</td>
+                        <td class="text-end">{{ $cashRegister->closing_amount !== null ? money_format_decimal($cashRegister->closing_amount) : '-' }}</td>
+                        <td class="text-end">
+                            <a class="btn btn-outline-primary btn-sm" href="{{ route('sales.cash-registers.show', $cashRegister) }}">
+                                <i class="ti ti-eye"></i>
+                                Ver detalle
+                            </a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td class="text-center text-body-secondary py-4" colspan="10">No hay cajas registradas.</td>
+                    </tr>
+                @endforelse
+            </tbody>
         </table>
-        <script type="application/json" id="sales-table-columns">
-            [
-                {"data":"id","name":"sales.id"},
-                {"data":"sale_date","name":"sales.sale_date"},
-                {"data":"receipt_number","name":"sales.receipt_number"},
-                {"data":"customer_name","name":"sales.customer_name","defaultContent":"-"},
-                {"data":"branch_name","name":"branches.name"},
-                {"data":"warehouse_name","name":"warehouses.name"},
-                {"data":"user_name","name":"users.name","defaultContent":"-"},
-                {"data":"payments","name":"payments","orderable":false,"searchable":false,"defaultContent":"-"},
-                {"data":"status","name":"sales.status"},
-                {"data":"total","name":"sales.total","className":"text-end"}
-            ]
-        </script>
+
+        <x-slot:footer>
+            {{ $cashRegisters->links() }}
+        </x-slot:footer>
     </x-ui.table-card>
 @endsection
