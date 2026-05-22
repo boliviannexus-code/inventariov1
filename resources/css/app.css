@@ -3,6 +3,7 @@
 
 :root {
     --app-sidebar-width: 16rem;
+    --app-sidebar-collapsed-width: 4.75rem;
 }
 
 body {
@@ -20,7 +21,7 @@ body {
 
 .app-wrapper {
     min-width: 0;
-    width: 100%;
+    width: auto;
     transition: margin-left .15s ease-in-out;
 }
 
@@ -274,11 +275,88 @@ body {
         position: fixed;
         inset: 0 auto 0 0;
         z-index: 1030;
+        transition: width .15s ease-in-out;
     }
 
-    .app-wrapper {
+    .app-sidebar.navbar-expand-lg.navbar-vertical ~ .app-wrapper {
         margin-left: var(--app-sidebar-width);
-        width: calc(100% - var(--app-sidebar-width));
+        width: auto;
+        max-width: none;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar {
+        width: var(--app-sidebar-collapsed-width);
+    }
+
+    body.app-sidebar-collapsed .app-sidebar.navbar-expand-lg.navbar-vertical ~ .app-wrapper {
+        margin-left: var(--app-sidebar-collapsed-width);
+        width: auto;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .navbar-brand {
+        justify-content: center;
+        padding-inline: .5rem;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .navbar-brand .lh-sm {
+        display: none;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .navbar-nav {
+        padding-inline: .5rem;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .nav-link,
+    body.app-sidebar-collapsed .app-sidebar .app-menu-toggle {
+        justify-content: center;
+        padding-inline: .5rem;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .nav-link-icon {
+        margin-right: 0;
+    }
+
+    body.app-sidebar-collapsed .app-sidebar .nav-link-title,
+    body.app-sidebar-collapsed .app-sidebar .menu-chevron,
+    body.app-sidebar-collapsed .app-sidebar .app-submenu {
+        display: none;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar {
+        width: var(--app-sidebar-width);
+        box-shadow: 0 1rem 2rem rgba(0, 0, 0, .22);
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .navbar-brand {
+        justify-content: flex-start;
+        padding-inline: 1rem;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .navbar-brand .lh-sm {
+        display: block;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .navbar-nav {
+        padding-inline: .75rem;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .nav-link,
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .app-menu-toggle {
+        justify-content: flex-start;
+        padding-inline: .75rem;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .nav-link-icon {
+        margin-right: .5rem;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .nav-link-title,
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .menu-chevron {
+        display: inline-flex;
+    }
+
+    body.app-sidebar-collapsed.app-sidebar-peek .app-sidebar .app-submenu {
+        display: grid;
     }
 }
 

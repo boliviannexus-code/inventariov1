@@ -128,8 +128,10 @@
                 <tr>
                     <th>Fecha</th>
                     <th>Comprobante</th>
+                    <th>Estado</th>
                     <th>Pagos</th>
                     <th class="text-end">Total</th>
+                    <th class="text-end">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -138,15 +140,36 @@
                         <td>{{ $sale->sale_date?->format('Y-m-d H:i') }}</td>
                         <td class="fw-semibold">{{ $sale->receipt_number }}</td>
                         <td>
+                            @if ($sale->status === 'voided')
+                                <span class="badge text-bg-danger">Anulada</span>
+                            @else
+                                <span class="badge text-bg-success">Completada</span>
+                            @endif
+                        </td>
+                        <td>
                             @foreach ($sale->payments as $payment)
                                 <span class="badge bg-blue-lt me-1 mb-1">{{ $payment->payment_method_name }} {{ money_format_decimal($payment->amount) }}</span>
                             @endforeach
                         </td>
-                        <td class="text-end fw-semibold">{{ money_format_decimal($sale->total) }}</td>
+                        <td class="text-end fw-semibold {{ $sale->status === 'voided' ? 'text-body-secondary text-decoration-line-through' : '' }}">{{ money_format_decimal($sale->total) }}</td>
+                        <td class="text-end">
+                            @can('sales.void')
+                                @if ($sale->status !== 'voided')
+                                    <form method="POST" action="{{ route('sales.void', $sale) }}" data-confirm-void-sale data-refresh-url="{{ route('sales.cash-registers.show', $cashRegister) }}">
+                                        @csrf
+                                        <button class="btn btn-outline-danger btn-sm" type="submit">Anular</button>
+                                    </form>
+                                @else
+                                    <span class="text-body-secondary">-</span>
+                                @endif
+                            @else
+                                <span class="text-body-secondary">-</span>
+                            @endcan
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td class="text-center text-body-secondary py-4" colspan="4">Sin ventas registradas.</td>
+                        <td class="text-center text-body-secondary py-4" colspan="6">Sin ventas registradas.</td>
                     </tr>
                 @endforelse
             </tbody>

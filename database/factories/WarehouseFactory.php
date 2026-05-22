@@ -15,6 +15,7 @@ class WarehouseFactory extends Factory
     {
         return [
             'branch_id' => Branch::factory(),
+            'company_id' => fn (array $attributes): ?int => Branch::query()->find($attributes['branch_id'])?->company_id,
             'name' => fake()->unique()->words(2, true),
             'code' => fake()->unique()->bothify('ALM-###'),
             'is_active' => true,

@@ -1,11 +1,28 @@
+@php
+    $navbarCompany = \App\Support\CompanyContext::activeCompany(auth()->user());
+@endphp
+
 <header class="navbar navbar-expand-md d-print-none app-navbar">
     <div class="container-xl">
+        <button class="btn btn-icon d-none d-lg-inline-flex me-3" type="button" data-sidebar-toggle aria-label="Replegar menu" title="Replegar menu">
+            <i class="ti ti-layout-sidebar-left-collapse"></i>
+        </button>
+
         <div class="navbar-brand d-none-navbar-horizontal pe-0 pe-md-3">
-            <div>
-                <div class="page-title mb-0">@yield('page-title', 'Panel administrativo')</div>
-                @hasSection('page-subtitle')
-                    <div class="text-muted small">@yield('page-subtitle')</div>
+            <div class="d-flex align-items-center gap-3">
+                @if ($navbarCompany?->logo_url)
+                    <span class="avatar avatar-md" style="background-image: url('{{ $navbarCompany->logo_url }}')"></span>
+                @else
+                    <span class="avatar avatar-md bg-primary-lt text-primary">
+                        <i class="ti ti-building-store fs-2"></i>
+                    </span>
                 @endif
+                <div>
+                    <div class="page-title mb-0">@yield('page-title', 'Panel administrativo')</div>
+                    @hasSection('page-subtitle')
+                        <div class="text-muted small">@yield('page-subtitle')</div>
+                    @endif
+                </div>
             </div>
         </div>
 

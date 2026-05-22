@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Repositories\UserRepository;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -30,6 +31,7 @@ class UserService
         $roles = $data['roles'] ?? [];
         unset($data['roles']);
 
+        $data = $this->applyCompanyAssignmentRules($data);
         $data['password'] = Hash::make($data['password']);
         $data['is_active'] = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : true;
 
@@ -46,6 +48,7 @@ class UserService
         $roles = $data['roles'] ?? null;
         unset($data['roles'], $data['password']);
 
+        $data = $this->applyCompanyAssignmentRules($data);
         $data['is_active'] = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : $user->is_active;
 
         if ($user->is_active && ! $data['is_active']) {
@@ -142,5 +145,19 @@ class UserService
                 'user' => 'No puedes desactivar al ultimo admin activo.',
             ]);
         }
+    }
+
+    private function applyCompanyAssignmentRules(array $data): array
+    {
+        $actor = auth()->user();
+        $assigningNoCompany = array_key_exists('company_id', $data) && blank($data['company_id']);
+
+        if ($assigningNoCompany && CompanyContext::canAssignNoCompany($actor)) {
+            $data['company_id'] = null;
+
+            return $data;
+        }
+
+        return CompanyContext::applyToData($data, $actor);
     }
 }

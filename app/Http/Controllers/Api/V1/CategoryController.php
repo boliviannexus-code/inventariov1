@@ -42,6 +42,8 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, Category $category): JsonResponse
     {
+        $this->authorize('update', $category);
+
         $category = $this->categories->update($category, $request->validated());
 
         return $this->successResponse(CategoryResource::make($category), 'Categoria actualizada correctamente.');

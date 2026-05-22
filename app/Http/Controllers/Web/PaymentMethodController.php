@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePaymentMethodRequest;
 use App\Http\Requests\UpdatePaymentMethodRequest;
 use App\Models\PaymentMethod;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,7 @@ class PaymentMethodController extends Controller
 
     public function store(StorePaymentMethodRequest $request): JsonResponse|RedirectResponse
     {
-        $paymentMethod = PaymentMethod::query()->create($request->validated());
+        $paymentMethod = PaymentMethod::query()->create(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax() || $request->expectsJson()) {
             return response()->json([
@@ -45,6 +46,7 @@ class PaymentMethodController extends Controller
     public function show(Request $request, PaymentMethod $paymentMethod): View
     {
         abort_unless(auth()->user()?->can('payment-methods.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($paymentMethod->company_id, $request->user()), 403);
 
         return view($request->ajax() ? 'payment-methods.partials.show' : 'payment-methods.show', compact('paymentMethod'));
     }
@@ -52,13 +54,16 @@ class PaymentMethodController extends Controller
     public function edit(Request $request, PaymentMethod $paymentMethod): View
     {
         abort_unless(auth()->user()?->can('payment-methods.update'), 403);
+        abort_unless(CompanyContext::belongsToUser($paymentMethod->company_id, $request->user()), 403);
 
         return view($request->ajax() ? 'payment-methods.partials.edit-form' : 'payment-methods.edit', compact('paymentMethod'));
     }
 
     public function update(UpdatePaymentMethodRequest $request, PaymentMethod $paymentMethod): JsonResponse|RedirectResponse
     {
-        $paymentMethod->update($request->validated());
+        abort_unless(CompanyContext::belongsToUser($paymentMethod->company_id, $request->user()), 403);
+
+        $paymentMethod->update(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax() || $request->expectsJson()) {
             return response()->json([
@@ -74,6 +79,7 @@ class PaymentMethodController extends Controller
     public function destroy(PaymentMethod $paymentMethod): RedirectResponse
     {
         abort_unless(auth()->user()?->can('payment-methods.delete'), 403);
+        abort_unless(CompanyContext::belongsToUser($paymentMethod->company_id, auth()->user()), 403);
 
         abort_if($paymentMethod->salePayments()->exists(), 422, 'No se puede eliminar un metodo de pago con ventas asociadas.');
 

@@ -4,6 +4,7 @@ namespace Tests\Feature\Pos;
 
 use App\Models\Branch;
 use App\Models\CashRegister;
+use App\Models\Company;
 use App\Models\PointOfSale;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -19,11 +20,8 @@ class OpenCashRegisterTest extends TestCase
     public function test_user_can_open_cash_register_for_assigned_point_of_sale(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
-        $warehouse = Warehouse::factory()->for($branch)->create();
-        $pointOfSale = PointOfSale::factory()->for($branch)->create([
-            'warehouse_id' => $warehouse->id,
-            'code' => $branch->id.'-'.$warehouse->id.'-000001',
+        [$pointOfSale, $branch] = $this->pointOfSaleFor($user, [
+            'code' => 'PV-OPEN-001',
         ]);
         $pointOfSale->users()->sync([$user->id]);
 
@@ -47,7 +45,7 @@ class OpenCashRegisterTest extends TestCase
     public function test_user_cannot_open_cash_register_for_unassigned_point_of_sale(): void
     {
         $user = $this->userWithPosAccess();
-        $pointOfSale = PointOfSale::factory()->create();
+        [$pointOfSale] = $this->pointOfSaleFor($user);
 
         $this
             ->actingAs($user)
@@ -61,7 +59,7 @@ class OpenCashRegisterTest extends TestCase
     public function test_user_cannot_open_two_cash_registers(): void
     {
         $user = $this->userWithPosAccess();
-        $pointOfSale = PointOfSale::factory()->create();
+        [$pointOfSale] = $this->pointOfSaleFor($user);
         $pointOfSale->users()->sync([$user->id]);
         CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -70,7 +68,7 @@ class OpenCashRegisterTest extends TestCase
             'status' => 'open',
         ]);
 
-        $otherPointOfSale = PointOfSale::factory()->create();
+        [$otherPointOfSale] = $this->pointOfSaleFor($user);
         $otherPointOfSale->users()->sync([$user->id]);
 
         $this
@@ -85,8 +83,8 @@ class OpenCashRegisterTest extends TestCase
     public function test_point_of_sale_cannot_have_two_open_cash_registers(): void
     {
         $firstUser = $this->userWithPosAccess();
-        $secondUser = $this->userWithPosAccess();
-        $pointOfSale = PointOfSale::factory()->create();
+        $secondUser = $this->userWithPosAccess((int) $firstUser->company_id);
+        [$pointOfSale] = $this->pointOfSaleFor($firstUser);
         $pointOfSale->users()->sync([$firstUser->id, $secondUser->id]);
         CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -107,8 +105,8 @@ class OpenCashRegisterTest extends TestCase
     public function test_pos_screen_lists_only_assigned_points_for_regular_user(): void
     {
         $user = $this->userWithPosAccess();
-        $assigned = PointOfSale::factory()->create(['name' => 'POS asignado']);
-        $unassigned = PointOfSale::factory()->create(['name' => 'POS no asignado']);
+        [$assigned] = $this->pointOfSaleFor($user, ['name' => 'POS asignado']);
+        [$unassigned] = $this->pointOfSaleFor($user, ['name' => 'POS no asignado']);
         $assigned->users()->sync([$user->id]);
 
         $this
@@ -123,8 +121,8 @@ class OpenCashRegisterTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $user->assignRole('admin');
-        $assigned = PointOfSale::factory()->create(['name' => 'POS admin asignado']);
-        $unassigned = PointOfSale::factory()->create(['name' => 'POS admin no asignado']);
+        [$assigned] = $this->pointOfSaleFor($user, ['name' => 'POS admin asignado']);
+        [$unassigned] = $this->pointOfSaleFor($user, ['name' => 'POS admin no asignado']);
         $assigned->users()->sync([$user->id]);
 
         $this
@@ -139,7 +137,7 @@ class OpenCashRegisterTest extends TestCase
     {
         $user = $this->userWithPosAccess();
         $user->assignRole('admin');
-        $pointOfSale = PointOfSale::factory()->create();
+        [$pointOfSale] = $this->pointOfSaleFor($user);
 
         $this
             ->actingAs($user)
@@ -150,12 +148,22 @@ class OpenCashRegisterTest extends TestCase
             ->assertSessionHasErrors('point_of_sale_id');
     }
 
-    private function userWithPosAccess(): User
+    private function pointOfSaleFor(User $user, array $attributes = []): array
+    {
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $user->company_id]);
+        $pointOfSale = PointOfSale::factory()->forWarehouse($warehouse->id)->create($attributes);
+
+        return [$pointOfSale, $branch, $warehouse];
+    }
+
+    private function userWithPosAccess(?int $companyId = null): User
     {
         Permission::findOrCreate('pos.access');
         Role::findOrCreate('admin');
 
-        $user = User::factory()->create();
+        $companyId ??= Company::factory()->create()->id;
+        $user = User::factory()->create(['company_id' => $companyId]);
         $user->givePermissionTo('pos.access');
 
         return $user;

@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Product;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -12,6 +13,7 @@ class ProductRepository
     {
         return Product::query()
             ->with(['category', 'measurementUnit', 'media'])
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->latest()
             ->paginate($perPage);
     }
@@ -20,6 +22,7 @@ class ProductRepository
     {
         return Product::query()
             ->with('media')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->where('is_active', true)
             ->orderBy('name')
             ->get();

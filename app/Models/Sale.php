@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Sale extends Model
+class Sale extends Model implements Auditable
 {
-    use SoftDeletes;
+    use AuditsCompanyChanges, SoftDeletes;
 
     protected $fillable = [
         'customer_id',

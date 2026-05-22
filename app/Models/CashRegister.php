@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Database\Factories\CashRegisterFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class CashRegister extends Model
+class CashRegister extends Model implements Auditable
 {
     /** @use HasFactory<CashRegisterFactory> */
-    use HasFactory;
+    use AuditsCompanyChanges, HasFactory;
 
     protected $fillable = [
         'point_of_sale_id',

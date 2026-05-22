@@ -3,6 +3,8 @@
 namespace App\Repositories;
 
 use App\Models\User;
+use App\Models\Company;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Spatie\Permission\Models\Role;
@@ -13,14 +15,15 @@ class UserRepository
     {
         return User::query()
             ->when($withTrashed, fn ($query) => $query->withTrashed())
-            ->with('roles')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
+            ->with(['company', 'roles'])
             ->latest()
             ->paginate($perPage);
     }
 
     public function findWithTrashed(int|string $id): User
     {
-        return User::withTrashed()->with('roles')->findOrFail($id);
+        return User::withTrashed()->with(['company', 'roles'])->findOrFail($id);
     }
 
     public function create(array $data): User
@@ -67,5 +70,14 @@ class UserRepository
         return Role::query()
             ->orderBy('name')
             ->get();
+    }
+
+    public function companiesForSelect(): Collection
+    {
+        return Company::query()
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->whereKey($companyId))
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 }

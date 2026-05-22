@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\PointOfSale;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Repositories\PointOfSaleRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class PointOfSaleService
 {
@@ -27,11 +29,13 @@ class PointOfSaleService
             $data = $this->normalize($data, true);
             $warehouse = Warehouse::query()->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
             $sequence = $this->nextSequence($warehouse->id);
+            $data['company_id'] = $warehouse->company_id;
             $data['branch_id'] = $warehouse->branch_id;
             $data['sequence_number'] = $sequence;
             $data['code'] = $this->referenceFor($warehouse, $sequence);
 
             $pointOfSale = $this->pointOfSales->create($data);
+            $this->ensureUsersBelongToCompany($users, $pointOfSale->company_id);
             $pointOfSale->users()->sync($users);
 
             return $pointOfSale->refresh()->load(['branch', 'warehouse', 'users']);
@@ -48,6 +52,7 @@ class PointOfSaleService
             $users = $data['users'] ?? [];
             $data = $this->normalize($data);
             $warehouse = Warehouse::query()->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
+            $data['company_id'] = $warehouse->company_id;
             $data['branch_id'] = $warehouse->branch_id;
 
             if ((int) $pointOfSale->warehouse_id !== $warehouse->id) {
@@ -59,6 +64,7 @@ class PointOfSaleService
             }
 
             $pointOfSale = $this->pointOfSales->update($pointOfSale, $data);
+            $this->ensureUsersBelongToCompany($users, $pointOfSale->company_id);
             $pointOfSale->users()->sync($users);
 
             return $pointOfSale->refresh()->load(['branch', 'warehouse', 'users']);
@@ -89,6 +95,26 @@ class PointOfSaleService
         }
 
         return $data;
+    }
+
+    private function ensureUsersBelongToCompany(array $userIds, ?int $companyId): void
+    {
+        if ($companyId === null || $userIds === []) {
+            return;
+        }
+
+        $invalidUsers = User::query()
+            ->whereIn('id', $userIds)
+            ->where(fn ($query) => $query
+                ->where('company_id', '<>', $companyId)
+                ->orWhereNull('company_id'))
+            ->exists();
+
+        if ($invalidUsers) {
+            throw ValidationException::withMessages([
+                'users' => 'Todos los usuarios asignados deben pertenecer a la misma empresa del punto de venta.',
+            ]);
+        }
     }
 
     private function nextSequence(int $warehouseId): int

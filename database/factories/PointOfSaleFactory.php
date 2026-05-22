@@ -20,6 +20,7 @@ class PointOfSaleFactory extends Factory
                 ->for(Branch::query()->find($attributes['branch_id']))
                 ->create()
                 ->id,
+            'company_id' => fn (array $attributes): ?int => Warehouse::query()->find($attributes['warehouse_id'])?->company_id,
             'name' => fake()->unique()->words(2, true),
             'code' => fake()->unique()->bothify('PV-###'),
             'sequence_number' => 1,
@@ -29,6 +30,12 @@ class PointOfSaleFactory extends Factory
 
     public function forWarehouse(int $warehouseId): static
     {
-        return $this->state(fn (): array => ['warehouse_id' => $warehouseId]);
+        $warehouse = Warehouse::query()->find($warehouseId);
+
+        return $this->state(fn (): array => [
+            'company_id' => $warehouse?->company_id,
+            'branch_id' => $warehouse?->branch_id,
+            'warehouse_id' => $warehouseId,
+        ]);
     }
 }

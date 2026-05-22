@@ -2,9 +2,25 @@
 
 @section('title', 'Dashboard | Inventario POS')
 @section('page-title', 'Dashboard')
-@section('page-subtitle', 'Resumen inicial de catalogo y operacion')
+@section('page-subtitle', $dashboardCompany ? 'Resumen de '.$dashboardCompany->name : 'Resumen global de todas las empresas')
 
 @section('content')
+    <div class="row g-3 mb-1">
+        <div class="col-12">
+            <x-ui.card>
+                <div class="card-body d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                    <div>
+                        <div class="text-body-secondary small">Empresa activa</div>
+                        <div class="h3 mb-0">{{ $dashboardCompany?->name ?? 'Todas las empresas' }}</div>
+                    </div>
+                    <span class="badge text-bg-{{ $dashboardCompany ? 'primary' : 'purple' }}">
+                        {{ $dashboardCompany ? 'Contexto de empresa' : 'Contexto global' }}
+                    </span>
+                </div>
+            </x-ui.card>
+        </div>
+    </div>
+
     <div class="row g-3">
         <div class="col-md-3">
             <x-ui.stat-card label="Productos" :value="$totalProducts" icon="ti ti-package" tone="primary" />

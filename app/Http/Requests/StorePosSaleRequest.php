@@ -3,31 +3,47 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use App\Support\CompanyContext;
 
 class StorePosSaleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('pos.access') ?? false;
+        return ($this->user()?->can('pos.access') ?? false) && CompanyContext::canOperate($this->user());
     }
 
     public function rules(): array
     {
+        $companyId = CompanyContext::id($this->user());
+
+        $customerRule = Rule::exists('customers', 'id');
+        $paymentRule = Rule::exists('payment_methods', 'id');
+        $productRule = Rule::exists('products', 'id');
+        $presentationRule = Rule::exists('presentations', 'id');
+
+        if ($companyId !== null) {
+            $customerRule->where('company_id', $companyId);
+            $paymentRule->where('company_id', $companyId);
+            $productRule->where('company_id', $companyId);
+            $presentationRule->where('company_id', $companyId);
+        }
+
         return [
-            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_id' => ['nullable', $customerRule],
             'customer_document_number' => ['nullable', 'string', 'max:255'],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
             'payment_mode' => ['nullable', 'in:cash,mixed'],
-            'cash_payment_method_id' => ['nullable', 'exists:payment_methods,id'],
+            'cash_payment_method_id' => ['nullable', $paymentRule],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'payments' => ['nullable', 'array'],
-            'payments.*.payment_method_id' => ['required_with:payments', 'exists:payment_methods,id'],
+            'payments.*.payment_method_id' => ['required_with:payments', $paymentRule],
             'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
             'payments.*.reference' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
-            'items.*.presentation_id' => ['required', 'exists:presentations,id'],
+            'items.*.product_id' => ['required', $productRule],
+            'items.*.presentation_id' => ['required', $presentationRule],
             'items.*.package_quantity' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0'],

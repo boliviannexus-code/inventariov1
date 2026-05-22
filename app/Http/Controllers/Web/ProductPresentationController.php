@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProductPresentationRequest;
 use App\Http\Requests\UpdateProductPresentationRequest;
 use App\Models\Presentation;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +30,7 @@ class ProductPresentationController extends Controller
 
     public function store(StoreProductPresentationRequest $request): JsonResponse|RedirectResponse
     {
-        $presentation = Presentation::query()->create($request->validated());
+        $presentation = Presentation::query()->create(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -45,6 +46,7 @@ class ProductPresentationController extends Controller
     public function show(Request $request, Presentation $productPresentation): View
     {
         abort_unless(auth()->user()?->can('product-presentations.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($productPresentation->company_id, $request->user()), 403);
 
         return view($request->ajax() ? 'product-presentations.partials.show' : 'product-presentations.show', compact('productPresentation'));
     }
@@ -52,13 +54,16 @@ class ProductPresentationController extends Controller
     public function edit(Request $request, Presentation $productPresentation): View
     {
         abort_unless(auth()->user()?->can('product-presentations.update'), 403);
+        abort_unless(CompanyContext::belongsToUser($productPresentation->company_id, $request->user()), 403);
 
         return view($request->ajax() ? 'product-presentations.partials.edit-form' : 'product-presentations.edit', compact('productPresentation'));
     }
 
     public function update(UpdateProductPresentationRequest $request, Presentation $productPresentation): JsonResponse|RedirectResponse
     {
-        $productPresentation->update($request->validated());
+        abort_unless(CompanyContext::belongsToUser($productPresentation->company_id, $request->user()), 403);
+
+        $productPresentation->update(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -74,6 +79,7 @@ class ProductPresentationController extends Controller
     public function destroy(Presentation $productPresentation): RedirectResponse
     {
         abort_unless(auth()->user()?->can('product-presentations.delete'), 403);
+        abort_unless(CompanyContext::belongsToUser($productPresentation->company_id, auth()->user()), 403);
 
         abort_if($productPresentation->inventoryMovements()->exists(), 422, 'No se puede eliminar una presentacion con movimientos asociados.');
 

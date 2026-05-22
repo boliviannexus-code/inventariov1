@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Warehouse;
+use App\Models\Branch;
 use App\Repositories\WarehouseRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,6 +27,9 @@ class WarehouseService
 
     public function create(array $data): Warehouse
     {
+        $branch = Branch::query()->findOrFail((int) $data['branch_id']);
+        $data['company_id'] = $branch->company_id;
+
         $warehouse = $this->warehouses->create($this->normalize($data, true));
 
         Log::info('Warehouse created', ['warehouse_id' => $warehouse->id]);
@@ -35,6 +39,9 @@ class WarehouseService
 
     public function update(Warehouse $warehouse, array $data): Warehouse
     {
+        $branch = Branch::query()->findOrFail((int) $data['branch_id']);
+        $data['company_id'] = $branch->company_id;
+
         $warehouse = $this->warehouses->update($warehouse, $this->normalize($data));
 
         Log::info('Warehouse updated', ['warehouse_id' => $warehouse->id]);

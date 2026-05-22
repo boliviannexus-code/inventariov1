@@ -14,9 +14,10 @@
                 <th>Tipo</th>
                 <th>Almacen</th>
                 <th>Presentacion</th>
+                <th class="text-end">Saldo anterior</th>
                 <th class="text-end">Entrada</th>
                 <th class="text-end">Salida</th>
-                <th class="text-end">Saldo</th>
+                <th class="text-end">Saldo actual</th>
                 <th>Usuario</th>
                 <th>Notas</th>
             </tr>
@@ -39,6 +40,7 @@
                         <div class="text-body-secondary small">{{ $movement->warehouse?->branch?->name }}</div>
                     </td>
                     <td>{{ $presentation }}</td>
+                    <td class="text-end text-body-secondary">{{ number_format((int) $movement->previous_balance) }}</td>
                     <td class="text-end text-success fw-semibold">{{ $entry > 0 ? number_format($entry) : '-' }}</td>
                     <td class="text-end text-danger fw-semibold">{{ $exit > 0 ? number_format($exit) : '-' }}</td>
                     <td class="text-end fw-semibold">{{ number_format((int) $movement->running_balance) }}</td>
@@ -47,7 +49,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td class="text-center text-body-secondary py-4" colspan="9">Este producto no tiene movimientos.</td>
+                    <td class="text-center text-body-secondary py-4" colspan="10">Este producto no tiene movimientos.</td>
                 </tr>
             @endforelse
         </tbody>

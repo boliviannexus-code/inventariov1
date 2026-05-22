@@ -17,6 +17,7 @@
                 <tr>
                     <th>Codigo</th>
                     <th>Nombre</th>
+                    <th>Empresa</th>
                     <th>Sucursal</th>
                     <th>Almacen vinculado</th>
                     <th>Usuarios</th>
@@ -29,6 +30,7 @@
                     <tr>
                         <td><span class="badge text-bg-light">{{ $pointOfSale->code }}</span></td>
                         <td>{{ $pointOfSale->name }}</td>
+                        <td>{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</td>
                         <td>{{ $pointOfSale->branch?->name ?? '-' }}</td>
                         <td>{{ $pointOfSale->warehouse?->name ?? '-' }}</td>
                         <td>
@@ -54,7 +56,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="7" message="No hay puntos de venta registrados." />
+                    <x-ui.empty-row colspan="8" message="No hay puntos de venta registrados." />
                 @endforelse
             </tbody>
         </table>

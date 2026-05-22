@@ -5,6 +5,9 @@
     <dt class="col-sm-3">Email</dt>
     <dd class="col-sm-9">{{ $user->email }}</dd>
 
+    <dt class="col-sm-3">Empresa</dt>
+    <dd class="col-sm-9">{{ $user->company?->name ?? 'Sin empresa' }}</dd>
+
     <dt class="col-sm-3">Roles</dt>
     <dd class="col-sm-9">
         @forelse ($user->roles as $role)

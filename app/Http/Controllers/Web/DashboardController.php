@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Support\CompanyContext;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -14,11 +15,15 @@ class DashboardController extends Controller
     {
         Gate::authorize('dashboard.view');
 
+        $products = CompanyContext::scope(Product::query());
+        $categories = CompanyContext::scope(Category::query());
+
         return view('dashboard.index', [
-            'totalProducts' => Product::count(),
-            'activeProducts' => Product::where('is_active', true)->count(),
-            'totalCategories' => Category::count(),
-            'activeCategories' => Category::where('is_active', true)->count(),
+            'dashboardCompany' => CompanyContext::activeCompany(),
+            'totalProducts' => (clone $products)->count(),
+            'activeProducts' => (clone $products)->where('is_active', true)->count(),
+            'totalCategories' => (clone $categories)->count(),
+            'activeCategories' => (clone $categories)->where('is_active', true)->count(),
         ]);
     }
 }

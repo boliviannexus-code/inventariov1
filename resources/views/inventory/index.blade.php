@@ -6,6 +6,14 @@
 
 @section('content')
     <x-ui.table-card title="Existencias por almacen" data-refresh-container>
+        @can('inventory.movements')
+            <x-slot:actions>
+                <a class="btn btn-primary btn-sm" href="{{ route('inventory.transfers.create') }}" data-modal-url="{{ route('inventory.transfers.create') }}" data-modal-title="Transferir entre almacenes">
+                    Transferir
+                </a>
+            </x-slot:actions>
+        @endcan
+
         <form class="stock-filter-bar" id="stock-filters" autocomplete="off" data-datatable-filters>
             <div>
                 <label class="form-label" for="stock-filter-warehouse">Almacen</label>

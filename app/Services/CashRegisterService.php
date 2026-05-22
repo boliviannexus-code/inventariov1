@@ -8,6 +8,7 @@ use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\User;
+use App\Support\CompanyContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +22,7 @@ class CashRegisterService
             $pointOfSale = PointOfSale::query()
                 ->with(['warehouse', 'users'])
                 ->where('is_active', true)
+                ->when(CompanyContext::id($user), fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->lockForUpdate()
                 ->findOrFail((int) $data['point_of_sale_id']);
 
@@ -58,12 +60,15 @@ class CashRegisterService
         $payments = $this->paymentSummary((int) $cashRegister->id);
         $sales = $this->salesForSummary((int) $cashRegister->id);
         $expenses = $this->expensesForSummary((int) $cashRegister->id);
-        $salesCents = $this->moneyToCents($sales->sum('total'));
+        $completedSales = Sale::query()
+            ->where('cash_register_id', $cashRegister->id)
+            ->where('status', 'completed');
+        $salesCents = $this->moneyToCents((clone $completedSales)->sum('total'));
 
         return [
             'opening' => $openingCents / 100,
             'sales_total' => $salesCents / 100,
-            'sales_count' => $sales->count(),
+            'sales_count' => (clone $completedSales)->count(),
             'cash_sales' => $cashSalesCents / 100,
             'expenses' => $expenseCents / 100,
             'available' => ($openingCents + $cashSalesCents - $expenseCents) / 100,
@@ -198,9 +203,8 @@ class CashRegisterService
         return Sale::query()
             ->with(['payments' => fn ($payments) => $payments->orderBy('payment_method_name')])
             ->where('cash_register_id', $cashRegisterId)
-            ->where('status', 'completed')
             ->orderByDesc('sale_date')
-            ->get(['id', 'receipt_number', 'sale_date', 'total']);
+            ->get(['id', 'receipt_number', 'sale_date', 'total', 'status']);
     }
 
     private function expensesForSummary(int $cashRegisterId)

@@ -14,6 +14,7 @@ use App\Models\PointOfSale;
 use App\Models\Product;
 use App\Services\CashRegisterService;
 use App\Services\SaleService;
+use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,7 @@ class PosController extends Controller
 
     public function index(Request $request): View
     {
-        abort_unless($request->user()?->can('pos.access'), 403);
+        abort_unless(($request->user()?->can('pos.access') ?? false) && CompanyContext::canOperate($request->user()), 403);
 
         $openRegister = $this->cashRegisters->openRegisterFor($request->user());
 
@@ -38,12 +39,22 @@ class PosController extends Controller
             'customers' => Customer::query()
                 ->select(['id', 'name', 'document_number'])
                 ->withCount('sales')
+                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->where('is_active', true)
                 ->whereNotNull('document_number')
                 ->orderBy('name')
                 ->get(),
-            'paymentMethods' => PaymentMethod::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'products' => Product::query()->with('measurementUnit')->where('is_active', true)->orderBy('name')->get(),
+            'paymentMethods' => PaymentMethod::query()
+                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'products' => Product::query()
+                ->with('measurementUnit')
+                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(),
             'stockAvailability' => $openRegister ? $this->stockAvailability((int) $openRegister->pointOfSale->warehouse_id) : [],
             'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : null,
         ]);
@@ -94,6 +105,7 @@ class PosController extends Controller
         $query = PointOfSale::query()
             ->with(['branch', 'warehouse'])
             ->where('is_active', true)
+            ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->whereHas('users', fn ($users) => $users->whereKey($request->user()->id))
             ->orderBy('name');
 

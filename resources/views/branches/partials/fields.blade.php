@@ -1,4 +1,20 @@
 <div class="row g-3">
+    <div class="col-md-12">
+        <label class="form-label" for="modal-branch-company">Empresa</label>
+        <select class="form-select" id="modal-branch-company" name="company_id" @disabled(auth()->user()?->company_id)>
+            <option value="">Sin empresa</option>
+            @foreach ($companies as $company)
+                <option value="{{ $company->id }}" @selected((int) old('company_id', $branch->company_id ?? auth()->user()?->company_id ?? 0) === $company->id)>
+                    {{ $company->name }}
+                </option>
+            @endforeach
+        </select>
+        @if (auth()->user()?->company_id)
+            <input type="hidden" name="company_id" value="{{ auth()->user()->company_id }}">
+        @endif
+        <div class="invalid-feedback" data-error-for="company_id"></div>
+    </div>
+
     <div class="col-md-8">
         <label class="form-label" for="modal-branch-name">Nombre</label>
         <input class="form-control" id="modal-branch-name" name="name" value="{{ old('name', $branch->name ?? '') }}" required>

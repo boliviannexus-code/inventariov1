@@ -45,6 +45,8 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
+        $this->authorize('update', $user);
+
         $user = $this->users->update($user, $request->validated());
 
         return $this->successResponse(UserResource::make($user), 'Usuario actualizado correctamente.');

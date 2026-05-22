@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class SalePayment extends Model
+class SalePayment extends Model implements Auditable
 {
+    use AuditsCompanyChanges;
+
     protected $fillable = [
         'sale_id',
         'payment_method_id',

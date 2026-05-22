@@ -5,6 +5,7 @@ namespace Tests\Feature\Pos;
 use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\CashRegisterExpense;
+use App\Models\Company;
 use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\User;
@@ -111,9 +112,9 @@ class CloseCashRegisterTest extends TestCase
 
     private function assignedPointOfSale(User $user): array
     {
-        $branch = Branch::factory()->create();
-        $warehouse = Warehouse::factory()->for($branch)->create();
-        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $user->company_id]);
+        $pointOfSale = PointOfSale::factory()->forWarehouse($warehouse->id)->create();
         $pointOfSale->users()->sync([$user->id]);
 
         return [$pointOfSale, $branch, $warehouse];
@@ -123,7 +124,8 @@ class CloseCashRegisterTest extends TestCase
     {
         Permission::findOrCreate('pos.access');
 
-        $user = User::factory()->create();
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
         $user->givePermissionTo('pos.access');
 
         return $user;

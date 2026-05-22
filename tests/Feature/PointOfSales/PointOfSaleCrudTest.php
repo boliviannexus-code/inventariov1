@@ -3,6 +3,7 @@
 namespace Tests\Feature\PointOfSales;
 
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\PointOfSale;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -17,7 +18,7 @@ class PointOfSaleCrudTest extends TestCase
     public function test_point_of_sale_requires_warehouse(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.create']);
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
 
         $this
             ->actingAs($user)
@@ -33,8 +34,8 @@ class PointOfSaleCrudTest extends TestCase
     public function test_user_can_create_point_of_sale_linked_to_warehouse(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.create']);
-        $cashier = User::factory()->create();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $cashier = User::factory()->create(['company_id' => $branch->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
 
         $this
@@ -64,7 +65,7 @@ class PointOfSaleCrudTest extends TestCase
     public function test_point_of_sale_rejects_warehouse_already_linked_to_another_point_of_sale(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.create']);
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
 
         PointOfSale::factory()->for($branch)->create([
@@ -87,8 +88,9 @@ class PointOfSaleCrudTest extends TestCase
     public function test_point_of_sale_rejects_warehouse_from_another_branch(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.create']);
-        $branch = Branch::factory()->create();
-        $otherWarehouse = Warehouse::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $otherBranch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $otherWarehouse = Warehouse::factory()->for($otherBranch)->create();
 
         $this
             ->actingAs($user)
@@ -104,8 +106,8 @@ class PointOfSaleCrudTest extends TestCase
     public function test_user_can_update_point_of_sale_warehouse_link(): void
     {
         $user = $this->userWithPermissions(['point-of-sales.update']);
-        $cashier = User::factory()->create();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $cashier = User::factory()->create(['company_id' => $branch->company_id]);
         $oldWarehouse = Warehouse::factory()->for($branch)->create();
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create([
@@ -142,7 +144,7 @@ class PointOfSaleCrudTest extends TestCase
      */
     private function userWithPermissions(array $permissions): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['company_id' => Company::factory()]);
 
         foreach ($permissions as $permission) {
             Permission::findOrCreate($permission);

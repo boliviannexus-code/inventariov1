@@ -8,6 +8,16 @@
     <div class="card mb-3">
         <div class="card-header">
             <h3 class="card-title">Datos principales</h3>
+            @can('purchases.void')
+                @if ($purchase->status !== 'voided')
+                    <div class="card-actions">
+                        <form method="POST" action="{{ route('purchases.void', $purchase) }}" data-confirm-void-purchase data-refresh-url="{{ route('purchases.show', $purchase) }}">
+                            @csrf
+                            <button class="btn btn-outline-danger btn-sm" type="submit">Anular compra</button>
+                        </form>
+                    </div>
+                @endif
+            @endcan
         </div>
         <div class="card-body">
             <dl class="row mb-0">
@@ -18,7 +28,13 @@
                 <dt class="col-sm-3">Fecha</dt>
                 <dd class="col-sm-9">{{ $purchase->purchase_date?->format('Y-m-d') }}</dd>
                 <dt class="col-sm-3">Estado</dt>
-                <dd class="col-sm-9">{{ $purchase->status }}</dd>
+                <dd class="col-sm-9">
+                    @if ($purchase->status === 'voided')
+                        <span class="badge text-bg-danger">Anulada</span>
+                    @else
+                        <span class="badge text-bg-success">Completada</span>
+                    @endif
+                </dd>
                 <dt class="col-sm-3">Observaciones</dt>
                 <dd class="col-sm-9">{{ $purchase->notes ?: '-' }}</dd>
             </dl>

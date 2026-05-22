@@ -1,9 +1,9 @@
 @php
     $catalogOpen = request()->routeIs('products.*', 'product-presentations.*', 'categories.*', 'measurement-units.*', 'payment-methods.*', 'suppliers.*');
-    $operationsOpen = request()->routeIs('branches.*', 'warehouses.*', 'point-of-sales.*');
+    $operationsOpen = request()->routeIs('companies.*', 'branches.*', 'warehouses.*', 'point-of-sales.*');
     $inventoryOpen = request()->routeIs('inventory.*', 'purchases.*');
     $salesOpen = request()->routeIs('pos.*', 'sales.*');
-    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*');
+    $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
 
     $canCatalog = auth()->user()?->can('products.view')
         || auth()->user()?->can('product-presentations.view')
@@ -11,7 +11,8 @@
         || auth()->user()?->can('measurement-units.view')
         || auth()->user()?->can('payment-methods.view')
         || auth()->user()?->can('suppliers.view');
-    $canOperations = auth()->user()?->can('branches.view')
+    $canOperations = auth()->user()?->can('companies.view')
+        || auth()->user()?->can('branches.view')
         || auth()->user()?->can('warehouses.view')
         || auth()->user()?->can('point-of-sales.view');
     $canInventory = auth()->user()?->can('inventory.view')
@@ -20,17 +21,21 @@
         || auth()->user()?->can('sales.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
-        || auth()->user()?->can('permissions.view');
+        || auth()->user()?->can('permissions.view')
+        || auth()->user()?->can('audits.view');
+    $sidebarCompany = \App\Support\CompanyContext::activeCompany(auth()->user());
 @endphp
 
 <aside class="navbar navbar-vertical navbar-expand-lg app-sidebar" id="adminSidebar" data-bs-theme="dark">
     <div class="container-fluid">
         <h1 class="navbar-brand navbar-brand-autodark justify-content-start">
             <a href="{{ route('dashboard') }}" class="d-flex align-items-center gap-2 text-decoration-none">
-                <span class="avatar avatar-sm bg-primary-lt text-primary">
-                    <i class="ti ti-building-store"></i>
+                <span class="lh-sm">
+                    <span class="d-block text-truncate">{{ $sidebarCompany?->name ?? 'Inventario POS' }}</span>
+                    @if ($sidebarCompany)
+                        <span class="d-block small text-muted">Inventario POS</span>
+                    @endif
                 </span>
-                Inventario POS
             </a>
         </h1>
 
@@ -187,6 +192,15 @@
                         </button>
                         <div class="collapse {{ $operationsOpen ? 'show' : '' }}" id="menu-operations">
                             <ul class="nav app-submenu">
+                                @can('companies.view')
+                                    <li class="nav-item {{ request()->routeIs('companies.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('companies.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-building"></i></span>
+                                            <span class="nav-link-title">Empresas</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
                                 @can('branches.view')
                                     <li class="nav-item {{ request()->routeIs('branches.*') ? 'active' : '' }}">
                                         <a class="nav-link" href="{{ route('branches.index') }}">
@@ -250,6 +264,15 @@
                                         <a class="nav-link" href="{{ route('permissions.index') }}">
                                             <span class="nav-link-icon"><i class="ti ti-shield-check"></i></span>
                                             <span class="nav-link-title">Permisos</span>
+                                        </a>
+                                    </li>
+                                @endcan
+
+                                @can('audits.view')
+                                    <li class="nav-item {{ request()->routeIs('audits.*') ? 'active' : '' }}">
+                                        <a class="nav-link" href="{{ route('audits.index') }}">
+                                            <span class="nav-link-icon"><i class="ti ti-list-search"></i></span>
+                                            <span class="nav-link-title">Auditoria</span>
                                         </a>
                                     </li>
                                 @endcan

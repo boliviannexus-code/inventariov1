@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class CashRegisterExpense extends Model
+class CashRegisterExpense extends Model implements Auditable
 {
+    use AuditsCompanyChanges;
+
     protected $fillable = [
         'cash_register_id',
         'point_of_sale_id',

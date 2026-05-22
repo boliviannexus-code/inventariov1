@@ -4,6 +4,7 @@ namespace Tests\Feature\Purchases;
 
 use App\Enums\InventoryMovementType;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\InventoryMovement;
 use App\Models\Presentation;
 use App\Models\Product;
@@ -23,13 +24,15 @@ class PurchaseCreateTest extends TestCase
     {
         Permission::findOrCreate('purchases.create');
 
-        $user = User::factory()->create();
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
         $user->givePermissionTo('purchases.create');
 
-        Warehouse::factory()->create();
-        Supplier::factory()->create();
-        Product::factory()->create();
-        Presentation::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $company->id]);
+        Warehouse::factory()->for($branch)->create(['company_id' => $company->id]);
+        Supplier::factory()->create(['company_id' => $company->id]);
+        Product::factory()->create(['company_id' => $company->id]);
+        Presentation::factory()->create(['company_id' => $company->id]);
 
         $this
             ->actingAs($user)
@@ -44,14 +47,16 @@ class PurchaseCreateTest extends TestCase
         Permission::findOrCreate('purchases.view');
         Permission::findOrCreate('purchases.create');
 
-        $user = User::factory()->create();
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
         $user->givePermissionTo(['purchases.view', 'purchases.create']);
 
-        $branch = Branch::factory()->create();
-        $warehouse = Warehouse::factory()->for($branch)->create();
-        $supplier = Supplier::factory()->create();
-        $product = Product::factory()->create(['purchase_price' => 25.50]);
+        $branch = Branch::factory()->create(['company_id' => $company->id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $company->id]);
+        $supplier = Supplier::factory()->create(['company_id' => $warehouse->company_id]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'purchase_price' => 25.50]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Caja x 10',
             'units_per_package' => 10,
         ]);
@@ -112,13 +117,14 @@ class PurchaseCreateTest extends TestCase
         Permission::findOrCreate('purchases.view');
         Permission::findOrCreate('purchases.create');
 
-        $user = User::factory()->create();
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
         $user->givePermissionTo(['purchases.view', 'purchases.create']);
 
-        $branch = Branch::factory()->create();
-        $warehouse = Warehouse::factory()->for($branch)->create();
-        $product = Product::factory()->create();
-        $presentation = Presentation::factory()->create(['units_per_package' => 1]);
+        $branch = Branch::factory()->create(['company_id' => $company->id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $company->id]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id]);
+        $presentation = Presentation::factory()->create(['company_id' => $warehouse->company_id, 'units_per_package' => 1]);
 
         foreach ([1, 2] as $expectedSequence) {
             $this

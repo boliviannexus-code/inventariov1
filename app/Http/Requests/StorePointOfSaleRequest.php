@@ -4,28 +4,46 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Support\CompanyContext;
 
 class StorePointOfSaleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('point-of-sales.create') ?? false;
+        return ($this->user()?->can('point-of-sales.create') ?? false) && CompanyContext::canOperate($this->user());
     }
 
     public function rules(): array
     {
+        $branchRule = Rule::exists('branches', 'id')->whereNull('deleted_at');
+        $warehouseRule = Rule::exists('warehouses', 'id')
+            ->where('branch_id', $this->integer('branch_id'))
+            ->whereNull('deleted_at');
+        $userRule = Rule::exists('users', 'id')
+            ->where('is_active', true)
+            ->whereNull('deleted_at');
+
+        if ($companyId = CompanyContext::id($this->user())) {
+            $branchRule->where('company_id', $companyId);
+            $warehouseRule->where('company_id', $companyId);
+            $userRule->where('company_id', $companyId);
+        }
+
         return [
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => [
+                'required',
+                $branchRule,
+            ],
             'warehouse_id' => [
                 'required',
-                Rule::exists('warehouses', 'id')->where('branch_id', $this->integer('branch_id')),
+                $warehouseRule,
                 Rule::unique('point_of_sales', 'warehouse_id'),
             ],
             'name' => ['required', 'string', 'max:255'],
             'users' => ['nullable', 'array'],
             'users.*' => [
                 'integer',
-                Rule::exists('users', 'id')->where('is_active', true)->whereNull('deleted_at'),
+                $userRule,
             ],
             'is_active' => ['sometimes', 'boolean'],
         ];

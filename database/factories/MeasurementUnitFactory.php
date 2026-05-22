@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\MeasurementUnit;
+use App\Models\Company;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -14,6 +15,7 @@ class MeasurementUnitFactory extends Factory
     {
         return [
             'name' => fake()->unique()->word(),
+            'company_id' => Company::factory(),
             'abbreviation' => fake()->unique()->lexify('???'),
             'is_active' => true,
         ];

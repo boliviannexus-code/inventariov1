@@ -28,7 +28,8 @@ class SaleService
 
             $pointOfSale = $cashRegister->pointOfSale;
             $warehouseId = (int) $pointOfSale->warehouse_id;
-            $items = $this->normalizeItems($data['items']);
+            $companyId = $pointOfSale->company_id;
+            $items = $this->normalizeItems($data['items'], $companyId);
 
             foreach ($items as $item) {
                 $this->ensureStock($item, $warehouseId);
@@ -37,9 +38,9 @@ class SaleService
             $subtotal = collect($items)->sum('line_subtotal');
             $discount = collect($items)->sum('discount');
             $total = collect($items)->sum('subtotal');
-            $payments = $this->normalizePayments($data, $total);
+            $payments = $this->normalizePayments($data, $total, $user);
             $sequence = $this->nextSequence((int) $pointOfSale->id);
-            $customer = $this->resolveCustomer($data);
+            $customer = $this->resolveCustomer($data, $companyId);
 
             $sale = Sale::query()->create([
                 'customer_id' => $customer['id'],
@@ -98,13 +99,57 @@ class SaleService
         });
     }
 
-    private function resolveCustomer(array $data): array
+    public function void(Sale $sale, string $reason, int $userId): Sale
+    {
+        return DB::transaction(function () use ($sale, $reason, $userId): Sale {
+            $sale = Sale::query()
+                ->with(['details', 'warehouse'])
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
+
+            if ($sale->status === 'voided') {
+                throw ValidationException::withMessages([
+                    'sale' => 'La venta ya fue anulada.',
+                ]);
+            }
+
+            $notes = trim('Anulacion de venta '.$sale->receipt_number.'. Motivo: '.$reason);
+
+            foreach ($sale->details as $detail) {
+                InventoryMovement::query()->create([
+                    'product_id' => $detail->product_id,
+                    'presentation_id' => $detail->presentation_id,
+                    'presentation_name' => $detail->presentation_name,
+                    'warehouse_id' => $sale->warehouse_id,
+                    'user_id' => $userId,
+                    'type' => InventoryMovementType::AdjustmentIn,
+                    'quantity' => (int) $detail->quantity,
+                    'package_quantity' => (int) $detail->package_quantity,
+                    'units_per_package' => (int) $detail->units_per_package,
+                    'reference_id' => $sale->id,
+                    'reference_type' => 'sale_void',
+                    'notes' => $notes,
+                ]);
+            }
+
+            $sale->update([
+                'status' => 'voided',
+                'notes' => trim(($sale->notes ? $sale->notes.' | ' : '').$notes),
+            ]);
+
+            return $sale->refresh()->load(['details.product', 'details.presentation', 'payments.paymentMethod', 'pointOfSale', 'cashRegister']);
+        });
+    }
+
+    private function resolveCustomer(array $data, ?int $companyId): array
     {
         $documentNumber = trim((string) ($data['customer_document_number'] ?? ''));
         $name = trim((string) ($data['customer_name'] ?? ''));
 
         if ($documentNumber === '' && ! empty($data['customer_id'])) {
-            $customer = Customer::query()->find((int) $data['customer_id']);
+            $customer = Customer::query()
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+                ->find((int) $data['customer_id']);
 
             return [
                 'id' => $customer?->id,
@@ -130,6 +175,7 @@ class SaleService
         }
 
         $customer = Customer::query()
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
             ->where('document_number', $documentNumber)
             ->first();
 
@@ -154,6 +200,7 @@ class SaleService
 
         $customer = Customer::query()->create([
             'name' => $name,
+            'company_id' => $companyId,
             'document_number' => $documentNumber,
             'is_active' => true,
         ]);
@@ -165,12 +212,22 @@ class SaleService
         ];
     }
 
-    private function normalizeItems(array $items): array
+    private function normalizeItems(array $items, ?int $companyId): array
     {
         $productIds = collect($items)->pluck('product_id')->filter()->map(fn ($id): int => (int) $id)->unique();
         $presentationIds = collect($items)->pluck('presentation_id')->filter()->map(fn ($id): int => (int) $id)->unique();
-        $products = Product::query()->whereIn('id', $productIds)->where('is_active', true)->get()->keyBy('id');
-        $presentations = Presentation::query()->whereIn('id', $presentationIds)->where('is_active', true)->get()->keyBy('id');
+        $products = Product::query()
+            ->whereIn('id', $productIds)
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('id');
+        $presentations = Presentation::query()
+            ->whereIn('id', $presentationIds)
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('id');
         $normalized = [];
 
         foreach ($items as $index => $item) {
@@ -212,18 +269,21 @@ class SaleService
         return array_values($normalized);
     }
 
-    private function normalizePayments(array $data, float|int $total): array
+    private function normalizePayments(array $data, float|int $total, User $user): array
     {
         $totalCents = (int) round(((float) $total) * 100);
         $mode = $data['payment_mode'] ?? 'cash';
+        $companyId = $user->company_id ? (int) $user->company_id : null;
 
         if ($mode === 'cash') {
             $cashMethodId = (int) ($data['cash_payment_method_id'] ?? 0);
             $cash = PaymentMethod::query()
                 ->when($cashMethodId > 0, fn ($query) => $query->whereKey($cashMethodId))
                 ->when($cashMethodId <= 0, fn ($query) => $query->where('name', 'Efectivo'))
+                ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
                 ->firstOr(fn (): PaymentMethod => PaymentMethod::query()->create([
                     'name' => 'Efectivo',
+                    'company_id' => $companyId,
                     'is_active' => true,
                 ]));
             $receivedCents = array_key_exists('cash_received', $data)
@@ -255,7 +315,12 @@ class SaleService
         }
 
         $methodIds = collect($payments)->pluck('payment_method_id')->filter()->map(fn ($id): int => (int) $id)->unique();
-        $methods = PaymentMethod::query()->whereIn('id', $methodIds)->where('is_active', true)->get()->keyBy('id');
+        $methods = PaymentMethod::query()
+            ->whereIn('id', $methodIds)
+            ->when($companyId, fn ($query) => $query->where('company_id', $companyId))
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('id');
         $normalized = [];
         $paidCents = 0;
 

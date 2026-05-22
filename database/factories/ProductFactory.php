@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Category;
+use App\Models\Company;
 use App\Models\MeasurementUnit;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -18,6 +19,7 @@ class ProductFactory extends Factory
 
         return [
             'name' => fake()->unique()->words(3, true),
+            'company_id' => Company::factory(),
             'barcode' => fake()->unique()->ean13(),
             'category_id' => Category::factory(),
             'measurement_unit_id' => MeasurementUnit::factory(),

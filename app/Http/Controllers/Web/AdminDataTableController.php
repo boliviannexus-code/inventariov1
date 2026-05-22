@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Web\AuditController;
 use App\Models\Category;
+use App\Models\Company;
 use App\Models\InventoryMovement;
 use App\Models\MeasurementUnit;
 use App\Models\PaymentMethod;
@@ -12,13 +14,49 @@ use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
+use OwenIt\Auditing\Models\Audit;
 
 class AdminDataTableController extends Controller
 {
+    public function audits(Request $request): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('audits.view'), 403);
+
+        $query = Audit::query()
+            ->from('audits')
+            ->select('audits.*', 'users.name as user_name', 'companies.name as company_name')
+            ->leftJoin('users', function ($join): void {
+                $join->on('users.id', '=', 'audits.user_id')
+                    ->where('audits.user_type', User::class);
+            })
+            ->leftJoin('companies', 'companies.id', '=', 'audits.company_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('audits.company_id', $companyId))
+            ->when($request->filled('company_id'), fn ($query) => $query->where('audits.company_id', $request->integer('company_id')))
+            ->when($request->filled('user_id'), fn ($query) => $query->where('audits.user_id', $request->integer('user_id'))->where('audits.user_type', User::class))
+            ->when($request->filled('event'), fn ($query) => $query->where('audits.event', $request->string('event')))
+            ->when($request->filled('auditable_type'), fn ($query) => $query->where('audits.auditable_type', $request->string('auditable_type')))
+            ->when($request->filled('date_from'), fn ($query) => $query->whereDate('audits.created_at', '>=', $request->date('date_from')->toDateString()))
+            ->when($request->filled('date_to'), fn ($query) => $query->whereDate('audits.created_at', '<=', $request->date('date_to')->toDateString()));
+
+        return DataTables::eloquent($query)
+            ->editColumn('created_at', fn (Audit $audit): string => $audit->created_at?->format('Y-m-d H:i:s') ?? '')
+            ->addColumn('company_name', fn (Audit $audit): string => $audit->company_name ?: 'Global')
+            ->addColumn('user_name', fn (Audit $audit): string => $audit->user_name ?: 'Sistema')
+            ->editColumn('event', fn (Audit $audit): string => $this->auditEventBadge((string) $audit->event))
+            ->addColumn('auditable_label', fn (Audit $audit): string => AuditController::auditableLabel((string) $audit->auditable_type))
+            ->addColumn('record_id', fn (Audit $audit): string => (string) $audit->auditable_id)
+            ->addColumn('changes', fn (Audit $audit): string => $this->auditChangesSummary($audit))
+            ->addColumn('actions', fn (Audit $audit): string => $this->auditActions((int) $audit->id))
+            ->rawColumns(['event', 'actions'])
+            ->toJson();
+    }
+
     public function products(): JsonResponse
     {
         abort_unless(auth()->user()?->can('products.view'), 403);
@@ -27,7 +65,8 @@ class AdminDataTableController extends Controller
             ->with('media')
             ->select('products.*', 'categories.name as category_name', 'measurement_units.name as measurement_unit_name', 'measurement_units.abbreviation as measurement_unit_abbreviation')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
-            ->leftJoin('measurement_units', 'measurement_units.id', '=', 'products.measurement_unit_id');
+            ->leftJoin('measurement_units', 'measurement_units.id', '=', 'products.measurement_unit_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('products.company_id', $companyId));
 
         return DataTables::eloquent($query)
             ->addColumn('image', fn (Product $product): string => view('products.partials.image-thumb', compact('product'))->render())
@@ -43,7 +82,9 @@ class AdminDataTableController extends Controller
     {
         abort_unless(auth()->user()?->can('product-presentations.view'), 403);
 
-        $query = Presentation::query()->select('presentations.*');
+        $query = Presentation::query()
+            ->select('presentations.*')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('presentations.company_id', $companyId));
 
         return DataTables::eloquent($query)
             ->editColumn('is_active', fn (Presentation $presentation): string => $this->statusBadge($presentation->is_active))
@@ -57,7 +98,11 @@ class AdminDataTableController extends Controller
     {
         abort_unless(auth()->user()?->can('categories.view'), 403);
 
-        return DataTables::eloquent(Category::query()->select('categories.*'))
+        $query = Category::query()
+            ->select('categories.*')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('categories.company_id', $companyId));
+
+        return DataTables::eloquent($query)
             ->editColumn('is_active', fn (Category $category): string => $this->statusBadge($category->is_active))
             ->editColumn('created_at', fn (Category $category): string => $category->created_at?->format('Y-m-d') ?? '')
             ->addColumn('actions', fn (Category $category): string => view('categories.partials.actions', compact('category'))->render())
@@ -69,7 +114,11 @@ class AdminDataTableController extends Controller
     {
         abort_unless(auth()->user()?->can('measurement-units.view'), 403);
 
-        return DataTables::eloquent(MeasurementUnit::query()->select('measurement_units.*'))
+        $query = MeasurementUnit::query()
+            ->select('measurement_units.*')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('measurement_units.company_id', $companyId));
+
+        return DataTables::eloquent($query)
             ->editColumn('is_active', fn (MeasurementUnit $measurementUnit): string => $this->statusBadge($measurementUnit->is_active))
             ->editColumn('created_at', fn (MeasurementUnit $measurementUnit): string => $measurementUnit->created_at?->format('Y-m-d') ?? '')
             ->addColumn('actions', fn (MeasurementUnit $measurementUnit): string => view('measurement-units.partials.actions', compact('measurementUnit'))->render())
@@ -81,7 +130,11 @@ class AdminDataTableController extends Controller
     {
         abort_unless(auth()->user()?->can('payment-methods.view'), 403);
 
-        return DataTables::eloquent(PaymentMethod::query()->select('payment_methods.*'))
+        $query = PaymentMethod::query()
+            ->select('payment_methods.*')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('payment_methods.company_id', $companyId));
+
+        return DataTables::eloquent($query)
             ->editColumn('is_active', fn (PaymentMethod $paymentMethod): string => $this->statusBadge($paymentMethod->is_active))
             ->editColumn('created_at', fn (PaymentMethod $paymentMethod): string => $paymentMethod->created_at?->format('Y-m-d') ?? '')
             ->addColumn('actions', fn (PaymentMethod $paymentMethod): string => view('payment-methods.partials.actions', compact('paymentMethod'))->render())
@@ -93,7 +146,11 @@ class AdminDataTableController extends Controller
     {
         abort_unless(auth()->user()?->can('suppliers.view'), 403);
 
-        return DataTables::eloquent(Supplier::query()->select('suppliers.*'))
+        $query = Supplier::query()
+            ->select('suppliers.*')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('suppliers.company_id', $companyId));
+
+        return DataTables::eloquent($query)
             ->editColumn('is_active', fn (Supplier $supplier): string => $this->statusBadge($supplier->is_active))
             ->editColumn('created_at', fn (Supplier $supplier): string => $supplier->created_at?->format('Y-m-d') ?? '')
             ->addColumn('actions', fn (Supplier $supplier): string => view('suppliers.partials.actions', compact('supplier'))->render())
@@ -114,6 +171,9 @@ class AdminDataTableController extends Controller
             ->leftJoin('suppliers', 'suppliers.id', '=', 'purchases.supplier_id')
             ->leftJoin('warehouses', 'warehouses.id', '=', 'purchases.warehouse_id')
             ->leftJoin('users', 'users.id', '=', 'purchases.user_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query
+                ->where('warehouses.company_id', $companyId)
+                ->where(fn ($query) => $query->whereNull('purchases.supplier_id')->orWhere('suppliers.company_id', $companyId)))
             ->when($dateFrom, fn ($query) => $query->whereDate('purchases.purchase_date', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->whereDate('purchases.purchase_date', '<=', $dateTo))
             ->when($request->filled('supplier_id'), fn ($query) => $query->where('purchases.supplier_id', $request->integer('supplier_id')))
@@ -122,8 +182,9 @@ class AdminDataTableController extends Controller
         return DataTables::eloquent($query)
             ->editColumn('purchase_date', fn (Purchase $purchase): string => $purchase->purchase_date?->format('Y-m-d') ?? '')
             ->editColumn('total', fn (Purchase $purchase): string => money_format_decimal($purchase->total))
-            ->addColumn('actions', fn (Purchase $purchase): string => '<a class="btn btn-outline-secondary btn-sm" href="'.route('purchases.show', $purchase).'">Ver</a>')
-            ->rawColumns(['actions'])
+            ->editColumn('status', fn (Purchase $purchase): string => $this->purchaseStatusBadge((string) $purchase->status))
+            ->addColumn('actions', fn (Purchase $purchase): string => $this->purchaseActions($purchase))
+            ->rawColumns(['status', 'actions'])
             ->toJson();
     }
 
@@ -136,7 +197,10 @@ class AdminDataTableController extends Controller
             ->leftJoin('customers', 'customers.id', '=', 'sales.customer_id')
             ->leftJoin('branches', 'branches.id', '=', 'sales.branch_id')
             ->leftJoin('warehouses', 'warehouses.id', '=', 'sales.warehouse_id')
-            ->leftJoin('users', 'users.id', '=', 'sales.user_id');
+            ->leftJoin('users', 'users.id', '=', 'sales.user_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query
+                ->where('warehouses.company_id', $companyId)
+                ->where(fn ($query) => $query->whereNull('sales.customer_id')->orWhere('customers.company_id', $companyId)));
 
         return DataTables::eloquent($query)
             ->editColumn('sale_date', fn (Sale $sale): string => $sale->sale_date?->format('Y-m-d H:i') ?? '')
@@ -172,6 +236,9 @@ class AdminDataTableController extends Controller
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->join('warehouses', 'warehouses.id', '=', 'inventory_movements.warehouse_id')
             ->leftJoin('branches', 'branches.id', '=', 'warehouses.branch_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query
+                ->where('warehouses.company_id', $companyId)
+                ->where('products.company_id', $companyId))
             ->when($request->filled('warehouse_id'), fn ($query) => $query->where('warehouses.id', $request->integer('warehouse_id')))
             ->when($request->filled('category_id'), fn ($query) => $query->where('categories.id', $request->integer('category_id')))
             ->when($request->filled('product_id'), fn ($query) => $query->where('products.id', $request->integer('product_id')))
@@ -225,6 +292,9 @@ class AdminDataTableController extends Controller
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->join('warehouses', 'warehouses.id', '=', 'inventory_movements.warehouse_id')
             ->leftJoin('branches', 'branches.id', '=', 'warehouses.branch_id')
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query
+                ->where('warehouses.company_id', $companyId)
+                ->where('products.company_id', $companyId))
             ->when(request()->filled('warehouse_id'), fn ($query) => $query->where('warehouses.id', request()->integer('warehouse_id')))
             ->when(request()->filled('category_id'), fn ($query) => $query->where('products.category_id', request()->integer('category_id')))
             ->when(request()->filled('product_id'), fn ($query) => $query->where('products.id', request()->integer('product_id')))
@@ -254,6 +324,66 @@ class AdminDataTableController extends Controller
     private function statusBadge(bool $active): string
     {
         return '<span class="badge text-bg-'.($active ? 'success' : 'secondary').'">'.($active ? 'Activo' : 'Inactivo').'</span>';
+    }
+
+    private function purchaseStatusBadge(string $status): string
+    {
+        return match ($status) {
+            'voided' => '<span class="badge text-bg-danger">Anulada</span>',
+            'completed' => '<span class="badge text-bg-success">Completada</span>',
+            default => '<span class="badge text-bg-secondary">'.e($status).'</span>',
+        };
+    }
+
+    private function purchaseActions(Purchase $purchase): string
+    {
+        $actions = '<div class="btn-group btn-group-sm" role="group">';
+        $actions .= '<a class="btn btn-outline-secondary" href="'.route('purchases.show', $purchase).'">Ver</a>';
+
+        if (auth()->user()?->can('purchases.void') && $purchase->status !== 'voided') {
+            $actions .= '<form class="d-inline" method="POST" action="'.route('purchases.void', $purchase).'" data-confirm-void-purchase data-refresh-url="'.route('purchases.index').'">';
+            $actions .= csrf_field();
+            $actions .= '<button class="btn btn-outline-danger" type="submit">Anular</button>';
+            $actions .= '</form>';
+        }
+
+        return $actions.'</div>';
+    }
+
+    private function auditEventBadge(string $event): string
+    {
+        $tone = match ($event) {
+            'created' => 'success',
+            'updated' => 'primary',
+            'deleted' => 'danger',
+            'restored' => 'info',
+            default => 'secondary',
+        };
+
+        return '<span class="badge text-bg-'.$tone.'">'.AuditController::eventLabel($event).'</span>';
+    }
+
+    private function auditChangesSummary(Audit $audit): string
+    {
+        $old = array_keys($audit->old_values ?? []);
+        $new = array_keys($audit->new_values ?? []);
+        $fields = array_values(array_unique(array_merge($old, $new)));
+
+        if ($fields === []) {
+            return '-';
+        }
+
+        return collect($fields)
+            ->take(4)
+            ->implode(', ')
+            .(count($fields) > 4 ? '...' : '');
+    }
+
+    private function auditActions(int $auditId): string
+    {
+        $url = route('audits.show', $auditId);
+
+        return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Detalle de auditoria">Ver</a>';
     }
 
     private function stockBadge(int $stock, int $minimumStock, ?string $unit = null): string
@@ -305,16 +435,23 @@ class AdminDataTableController extends Controller
             ->havingRaw('SUM(package_quantity) > 0')
             ->exists();
 
-        if (! $hasPackages) {
-            return '<span class="text-muted">-</span>';
-        }
-
+        $adjustmentUrl = route('inventory.adjustment', [
+            'product_id' => $productId,
+            'warehouse_id' => $warehouseId,
+        ]);
         $url = route('inventory.defragment', [
             'product_id' => $productId,
             'warehouse_id' => $warehouseId,
         ]);
 
-        return '<a class="btn btn-outline-primary btn-sm" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Desfragmentar empaque">Desfragmentar</a>';
+        $actions = '<div class="btn-group btn-group-sm" role="group">';
+        $actions .= '<a class="btn btn-outline-secondary" href="'.$adjustmentUrl.'" data-modal-url="'.$adjustmentUrl.'" data-modal-title="Reajustar stock">Reajustar</a>';
+
+        if ($hasPackages) {
+            $actions .= '<a class="btn btn-outline-primary" href="'.$url.'" data-modal-url="'.$url.'" data-modal-title="Desfragmentar empaque">Desfragmentar</a>';
+        }
+
+        return $actions.'</div>';
     }
 
     private function kardexActions(int $productId, int $warehouseId, string $productName): string

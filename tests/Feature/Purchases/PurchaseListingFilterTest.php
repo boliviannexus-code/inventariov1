@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Purchases;
 
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Purchase;
 use App\Models\Supplier;
 use App\Models\User;
@@ -33,11 +35,12 @@ class PurchaseListingFilterTest extends TestCase
     public function test_purchase_datatable_defaults_to_today_and_can_filter_other_days_supplier_and_user(): void
     {
         $viewer = $this->userWithPurchaseView();
-        $supplier = Supplier::factory()->create(['name' => 'Proveedor Uno']);
-        $otherSupplier = Supplier::factory()->create(['name' => 'Proveedor Dos']);
-        $buyer = User::factory()->create(['name' => 'Comprador Uno']);
-        $otherBuyer = User::factory()->create(['name' => 'Comprador Dos']);
-        $warehouse = Warehouse::factory()->create();
+        $supplier = Supplier::factory()->create(['company_id' => $viewer->company_id, 'name' => 'Proveedor Uno']);
+        $otherSupplier = Supplier::factory()->create(['company_id' => $viewer->company_id, 'name' => 'Proveedor Dos']);
+        $buyer = User::factory()->create(['company_id' => $viewer->company_id, 'name' => 'Comprador Uno']);
+        $otherBuyer = User::factory()->create(['company_id' => $viewer->company_id, 'name' => 'Comprador Dos']);
+        $branch = Branch::factory()->create(['company_id' => $viewer->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $viewer->company_id]);
 
         Purchase::factory()->create([
             'supplier_id' => $supplier->id,
@@ -96,7 +99,7 @@ class PurchaseListingFilterTest extends TestCase
     {
         Permission::findOrCreate('purchases.view');
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['company_id' => Company::factory()]);
         $user->givePermissionTo('purchases.view');
 
         return $user;

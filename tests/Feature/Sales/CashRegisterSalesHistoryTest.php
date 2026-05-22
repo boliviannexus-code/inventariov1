@@ -5,6 +5,7 @@ namespace Tests\Feature\Sales;
 use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\CashRegisterExpense;
+use App\Models\Company;
 use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\User;
@@ -117,9 +118,12 @@ class CashRegisterSalesHistoryTest extends TestCase
 
     private function assignedPointOfSale(User $user): array
     {
-        $branch = Branch::factory()->create();
-        $warehouse = Warehouse::factory()->for($branch)->create();
-        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $user->company_id]);
+        $pointOfSale = PointOfSale::factory()->for($branch)->create([
+            'company_id' => $user->company_id,
+            'warehouse_id' => $warehouse->id,
+        ]);
         $pointOfSale->users()->sync([$user->id]);
 
         return [$pointOfSale, $branch, $warehouse];
@@ -129,7 +133,7 @@ class CashRegisterSalesHistoryTest extends TestCase
     {
         Permission::findOrCreate('sales.view');
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['company_id' => Company::factory()]);
         $user->givePermissionTo('sales.view');
 
         return $user;

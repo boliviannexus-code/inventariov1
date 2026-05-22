@@ -70,6 +70,8 @@ function openAjaxModal(trigger) {
             initTomSelects(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
             initDefragmentForms(ajaxModalBody);
+            initTransferForms(ajaxModalBody);
+            initStockAdjustmentForms(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -194,6 +196,87 @@ function confirmDelete(form) {
         if (result.isConfirmed) {
             form.submit();
         }
+    });
+}
+
+function confirmVoidPurchase(form) {
+    Swal.fire({
+        icon: 'warning',
+        title: form.dataset.confirmVoidPurchase ?? 'Anular compra',
+        text: 'Se revertira el stock ingresado por esta compra.',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulacion',
+        inputPlaceholder: 'Describe el motivo',
+        inputAttributes: {
+            maxlength: 500,
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Si, anular',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+        preConfirm: (value) => {
+            if (!value || value.trim().length < 3) {
+                Swal.showValidationMessage('Ingresa un motivo de al menos 3 caracteres.');
+                return false;
+            }
+
+            return value.trim();
+        },
+    }).then(async (result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const reason = document.createElement('input');
+        reason.type = 'hidden';
+        reason.name = 'void_reason';
+        reason.value = result.value;
+        form.append(reason);
+
+        if (form.matches('[data-ajax-form]')) {
+            await submitAjaxForm(form);
+            reason.remove();
+            return;
+        }
+
+        form.submit();
+    });
+}
+
+function confirmVoidSale(form) {
+    Swal.fire({
+        icon: 'warning',
+        title: form.dataset.confirmVoidSale ?? 'Anular venta',
+        text: 'Se devolvera el stock de esta venta y dejara de contar en la caja.',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulacion',
+        inputPlaceholder: 'Describe el motivo',
+        inputAttributes: {
+            maxlength: 500,
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Si, anular',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+        preConfirm: (value) => {
+            if (!value || value.trim().length < 3) {
+                Swal.showValidationMessage('Ingresa un motivo de al menos 3 caracteres.');
+                return false;
+            }
+
+            return value.trim();
+        },
+    }).then((result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const reason = document.createElement('input');
+        reason.type = 'hidden';
+        reason.name = 'void_reason';
+        reason.value = result.value;
+        form.append(reason);
+        form.submit();
     });
 }
 
@@ -952,6 +1035,359 @@ function initDefragmentForms(scope = document) {
     });
 }
 
+function initTransferForms(scope = document) {
+    scope.querySelectorAll('[data-transfer-form]').forEach((form) => {
+        if (form.dataset.transferInitialized === '1') {
+            return;
+        }
+
+        const source = form.querySelector('[data-transfer-source]');
+        const target = form.querySelector('[data-transfer-target]');
+        const product = form.querySelector('[data-transfer-product]');
+        const presentation = form.querySelector('[data-transfer-presentation]');
+        const units = form.querySelector('[data-transfer-units]');
+        const packages = form.querySelector('[data-transfer-packages]');
+        const summary = form.querySelector('[data-transfer-summary]');
+        const submit = form.querySelector('[data-transfer-submit]');
+        const unitsHelp = form.querySelector('[data-transfer-units-help]');
+        const packagesHelp = form.querySelector('[data-transfer-packages-help]');
+        const stockAvailability = JSON.parse(form.dataset.transferStock || '{}');
+        const productOptions = Array.from(product?.querySelectorAll('option[value]') ?? [])
+            .filter((option) => option.value)
+            .map((option) => ({
+                value: option.value,
+                text: option.dataset.name || option.textContent.trim(),
+            }));
+
+        const tomOption = (select) => {
+            const value = select?.value;
+
+            return value && select?.tomselect ? select.tomselect.options[value] : null;
+        };
+
+        const setFieldError = (field, errorKey, message = '') => {
+            if (!field) {
+                return;
+            }
+
+            field.setCustomValidity(message);
+            field.classList.toggle('is-invalid', message !== '');
+            field.tomselect?.wrapper?.classList.toggle('is-invalid', message !== '');
+
+            const feedback = form.querySelector(`[data-error-for="${errorKey}"]`);
+            if (feedback) {
+                feedback.textContent = message;
+            }
+        };
+
+        const selectedAvailability = () => {
+            const warehouseStock = stockAvailability[source?.value] || {};
+
+            return warehouseStock[product?.value] || { stock: 0, presentations: [] };
+        };
+
+        const selectedPresentation = () => {
+            const value = presentation?.value;
+
+            if (!value) {
+                return null;
+            }
+
+            return selectedAvailability().presentations.find((item) => String(item.id) === String(value)) || tomOption(presentation);
+        };
+
+        const refreshProductOptions = () => {
+            if (!product?.tomselect) {
+                return;
+            }
+
+            const selected = product.value;
+
+            product.tomselect.clear(true);
+            product.tomselect.clearOptions();
+
+            productOptions.forEach((option) => {
+                const stock = Number(stockAvailability[source?.value]?.[option.value]?.stock || 0);
+                const showStock = Boolean(source?.value);
+
+                product.tomselect.addOption({
+                    value: option.value,
+                    text: showStock ? `${option.text} - ${stock} u.` : option.text,
+                    baseName: option.text,
+                    stock,
+                    disabled: showStock && stock <= 0,
+                });
+            });
+
+            product.tomselect.refreshOptions(false);
+
+            if (selected && (!source?.value || Number(stockAvailability[source.value]?.[selected]?.stock || 0) > 0)) {
+                product.tomselect.setValue(selected, true);
+            }
+        };
+
+        const refreshPresentationOptions = () => {
+            if (!presentation?.tomselect) {
+                return;
+            }
+
+            const previous = presentation.value;
+            const availability = selectedAvailability();
+            const hasSelection = Boolean(source?.value && product?.value);
+
+            presentation.tomselect.clear(true);
+            presentation.tomselect.clearOptions();
+            presentation.tomselect.addOption({
+                value: '',
+                text: hasSelection ? `Unidad base - ${Number(availability.base_units || 0)} u.` : 'Selecciona almacen y producto',
+                baseName: 'Unidad base',
+                packages: Number(availability.base_units || 0),
+                unitsAvailable: Number(availability.base_units || 0),
+                units: 1,
+            });
+
+            (availability.presentations || []).forEach((item) => {
+                presentation.tomselect.addOption({
+                    value: String(item.id),
+                    text: `${item.name} - ${item.packages} disp. (${item.units} u.)`,
+                    baseName: item.name,
+                    packages: Number(item.packages || 0),
+                    unitsAvailable: Number(item.units || 0),
+                    units: Number(item.units_per_package || 1),
+                    disabled: Number(item.packages || 0) <= 0,
+                });
+            });
+
+            presentation.tomselect.refreshOptions(false);
+            presentation.tomselect.setValue(
+                (availability.presentations || []).some((item) => String(item.id) === String(previous)) ? previous : '',
+                true
+            );
+
+            if (hasSelection) {
+                presentation.tomselect.enable();
+            } else {
+                presentation.tomselect.disable();
+            }
+        };
+
+        const clampNumber = (input, min, max) => {
+            if (!input) {
+                return 0;
+            }
+
+            const raw = Number(input.value || min);
+            const safeMax = Math.max(min, Number(max || 0));
+            const value = Math.min(safeMax, Math.max(min, Number.isFinite(raw) ? raw : min));
+
+            input.value = String(value);
+
+            return value;
+        };
+
+        const syncTransfer = () => {
+            let valid = true;
+            const sameWarehouse = Boolean(source?.value && target?.value && source.value === target.value);
+            const availability = selectedAvailability();
+            const selectedStock = Number(availability.base_units || 0);
+            const presentationData = selectedPresentation();
+
+            setFieldError(target, 'target_warehouse_id', sameWarehouse ? 'El almacen destino debe ser diferente al origen.' : '');
+
+            if (sameWarehouse) {
+                valid = false;
+            }
+
+            if (!source?.value || !target?.value || !product?.value) {
+                valid = false;
+            }
+
+            if (presentationData) {
+                const maxPackages = Number(presentationData.packages || 0);
+                const unitsPerPackage = Number(presentationData.units || presentationData.units_per_package || 1);
+                const packageValue = clampNumber(packages, 1, maxPackages);
+                const totalUnits = packageValue * unitsPerPackage;
+
+                if (packages) {
+                    packages.disabled = false;
+                    packages.required = true;
+                    packages.max = String(Math.max(1, maxPackages));
+                }
+
+                if (units) {
+                    units.readOnly = true;
+                    units.required = false;
+                    units.value = String(totalUnits);
+                    units.max = String(Math.max(1, Number(presentationData.unitsAvailable || totalUnits)));
+                }
+                setFieldError(units, 'items.0.quantity', '');
+
+                if (unitsHelp) {
+                    unitsHelp.textContent = 'Las unidades se calculan automaticamente desde la presentacion.';
+                }
+
+                if (packagesHelp) {
+                    packagesHelp.textContent = `Disponible: ${maxPackages} presentacion(es).`;
+                }
+
+                setFieldError(packages, 'items.0.package_quantity', maxPackages <= 0 || packageValue > maxPackages
+                    ? `Disponible: ${maxPackages} presentacion(es).`
+                    : '');
+
+                if (maxPackages <= 0 || packageValue > maxPackages) {
+                    valid = false;
+                }
+
+                if (summary) {
+                    summary.textContent = `${packageValue} presentacion(es) x ${unitsPerPackage} unidad(es) = ${totalUnits} unidad(es). Stock disponible: ${maxPackages} presentacion(es), ${Number(presentationData.unitsAvailable || 0)} unidad(es).`;
+                }
+            } else {
+                const unitValue = clampNumber(units, 1, selectedStock);
+
+                if (packages) {
+                    packages.disabled = true;
+                    packages.required = false;
+                    packages.value = '';
+                    packages.removeAttribute('max');
+                    setFieldError(packages, 'items.0.package_quantity', '');
+                }
+
+                if (units) {
+                    units.readOnly = false;
+                    units.required = true;
+                    units.max = String(Math.max(1, selectedStock));
+                }
+
+                if (unitsHelp) {
+                    unitsHelp.textContent = `Disponible: ${selectedStock} unidad(es) suelta(s).`;
+                }
+
+                if (packagesHelp) {
+                    packagesHelp.textContent = 'Se habilita cuando selecciones caja, paquete u otra presentacion.';
+                }
+
+                setFieldError(units, 'items.0.quantity', selectedStock <= 0 || unitValue > selectedStock
+                    ? `Disponible: ${selectedStock} unidad(es).`
+                    : '');
+
+                if (selectedStock <= 0 || unitValue > selectedStock) {
+                    valid = false;
+                }
+
+                if (summary) {
+                    summary.textContent = product?.value
+                        ? `${unitValue} unidad(es) suelta(s) seleccionada(s). Stock base disponible: ${selectedStock} unidad(es).`
+                        : 'Selecciona almacen origen y producto para ver existencias disponibles.';
+                }
+            }
+
+            if (summary) {
+                summary.classList.toggle('alert-info', valid);
+                summary.classList.toggle('alert-warning', !valid);
+            }
+
+            if (submit) {
+                submit.disabled = !valid;
+            }
+
+            return valid;
+        };
+
+        source?.addEventListener('change', () => {
+            refreshProductOptions();
+            refreshPresentationOptions();
+            syncTransfer();
+        });
+        target?.addEventListener('change', syncTransfer);
+        product?.addEventListener('change', () => {
+            refreshPresentationOptions();
+            syncTransfer();
+        });
+        presentation?.addEventListener('change', syncTransfer);
+        units?.addEventListener('input', syncTransfer);
+        packages?.addEventListener('input', syncTransfer);
+
+        form.addEventListener('submit', (event) => {
+            if (syncTransfer()) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Revisa la transferencia',
+                text: 'Selecciona almacenes diferentes y una cantidad disponible para continuar.',
+            });
+        });
+
+        refreshProductOptions();
+        refreshPresentationOptions();
+        syncTransfer();
+        form.dataset.transferInitialized = '1';
+    });
+}
+
+function initStockAdjustmentForms(scope = document) {
+    scope.querySelectorAll('[data-stock-adjustment-form]').forEach((form) => {
+        if (form.dataset.stockAdjustmentInitialized === '1') {
+            return;
+        }
+
+        const presentation = form.querySelector('[data-stock-adjustment-presentation]');
+        const current = form.querySelector('[data-stock-adjustment-current]');
+        const counted = form.querySelector('[data-stock-adjustment-counted]');
+        const preview = form.querySelector('[data-stock-adjustment-preview]');
+
+        const syncPreview = () => {
+            const option = selectedOption(presentation);
+            const currentQuantity = Number(option?.dataset.current || 0);
+            const unitsPerPackage = Number(option?.dataset.units || 1);
+            const label = option?.dataset.label || 'Unidad base';
+            const countedQuantity = Math.max(0, Number(counted?.value || 0));
+            const difference = countedQuantity - currentQuantity;
+            const unitDifference = Math.abs(difference) * unitsPerPackage;
+
+            if (current) {
+                current.value = String(currentQuantity);
+            }
+
+            if (counted && Number(counted.value || 0) < 0) {
+                counted.value = '0';
+            }
+
+            if (!preview) {
+                return;
+            }
+
+            preview.classList.toggle('alert-info', difference === 0);
+            preview.classList.toggle('alert-success', difference > 0);
+            preview.classList.toggle('alert-warning', difference < 0);
+
+            if (difference === 0) {
+                preview.textContent = `Sin diferencia para ${label}: no se generara movimiento.`;
+                return;
+            }
+
+            const action = difference > 0 ? 'ingreso' : 'salida';
+            const packageLabel = presentation?.value ? 'presentacion(es)' : 'unidad(es) suelta(s)';
+            preview.textContent = `Se generara un ${action} por ${Math.abs(difference)} ${packageLabel}, equivalente a ${unitDifference} unidad(es).`;
+        };
+
+        presentation?.addEventListener('change', () => {
+            const option = selectedOption(presentation);
+            if (counted) {
+                counted.value = option?.dataset.current || '0';
+            }
+            syncPreview();
+        });
+        counted?.addEventListener('input', syncPreview);
+
+        syncPreview();
+        form.dataset.stockAdjustmentInitialized = '1';
+    });
+}
+
 function initUserDropdowns() {
     document.querySelectorAll('[data-user-dropdown-toggle]').forEach((toggle) => {
         if (toggle.dataset.dropdownInitialized === '1') {
@@ -972,6 +1408,87 @@ function initUserDropdowns() {
 
         toggle.dataset.dropdownInitialized = '1';
     });
+}
+
+function initSidebarToggle() {
+    const toggle = document.querySelector('[data-sidebar-toggle]');
+    const sidebar = document.querySelector('.app-sidebar');
+
+    if (!toggle || toggle.dataset.sidebarToggleInitialized === '1') {
+        return;
+    }
+
+    const icon = toggle.querySelector('i');
+    document.querySelectorAll('.app-sidebar .nav-link, .app-sidebar .app-menu-toggle').forEach((item) => {
+        const label = item.querySelector('.nav-link-title')?.textContent?.trim();
+
+        if (label && !item.getAttribute('title')) {
+            item.setAttribute('title', label);
+        }
+    });
+
+    const syncState = () => {
+        const collapsed = document.body.classList.contains('app-sidebar-collapsed');
+        toggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Replegar menu');
+        toggle.setAttribute('title', collapsed ? 'Expandir menu' : 'Replegar menu');
+
+        if (icon) {
+            icon.className = collapsed ? 'ti ti-layout-sidebar-left-expand' : 'ti ti-layout-sidebar-left-collapse';
+        }
+    };
+
+    toggle.addEventListener('click', () => {
+        document.body.classList.toggle('app-sidebar-collapsed');
+        document.body.classList.remove('app-sidebar-peek');
+        localStorage.setItem('app-sidebar-collapsed', document.body.classList.contains('app-sidebar-collapsed') ? '1' : '0');
+        syncState();
+    });
+
+    const openPeek = () => {
+        if (document.body.classList.contains('app-sidebar-collapsed')) {
+            document.body.classList.add('app-sidebar-peek');
+        }
+    };
+
+    const closePeek = () => {
+        document.body.classList.remove('app-sidebar-peek');
+    };
+
+    sidebar?.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('app-sidebar-collapsed')) {
+            return;
+        }
+
+        openPeek();
+
+        const link = event.target.closest('a.nav-link');
+        const toggleButton = event.target.closest('.app-menu-toggle');
+
+        if (link && !toggleButton) {
+            closePeek();
+        }
+    }, true);
+
+    document.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('app-sidebar-peek')) {
+            return;
+        }
+
+        if (event.target.closest('.app-sidebar') || event.target.closest('[data-sidebar-toggle]')) {
+            return;
+        }
+
+        closePeek();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closePeek();
+        }
+    });
+
+    syncState();
+    toggle.dataset.sidebarToggleInitialized = '1';
 }
 
 function initCashExpenseModal() {
@@ -1001,7 +1518,10 @@ initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
 initDefragmentForms();
+initTransferForms();
+initStockAdjustmentForms();
 initUserDropdowns();
+initSidebarToggle();
 initCashExpenseModal();
 initCashCloseModal();
 initAdminDataTables();
@@ -1026,6 +1546,22 @@ document.addEventListener('change', (event) => {
 document.addEventListener('submit', (event) => {
     const ajaxForm = event.target.closest('[data-ajax-form]');
     const deleteForm = event.target.closest('[data-confirm-delete]');
+    const voidPurchaseForm = event.target.closest('[data-confirm-void-purchase]');
+    const voidSaleForm = event.target.closest('[data-confirm-void-sale]');
+
+    if (voidPurchaseForm) {
+        event.preventDefault();
+        confirmVoidPurchase(voidPurchaseForm);
+
+        return;
+    }
+
+    if (voidSaleForm) {
+        event.preventDefault();
+        confirmVoidSale(voidSaleForm);
+
+        return;
+    }
 
     if (ajaxForm) {
         event.preventDefault();

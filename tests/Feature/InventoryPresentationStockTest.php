@@ -22,16 +22,19 @@ class InventoryPresentationStockTest extends TestCase
     {
         $user = User::factory()->create();
         $warehouse = Warehouse::factory()->for(Branch::factory())->create();
+        $companyId = $warehouse->company_id;
         $product = Product::factory()
-            ->for(Category::factory())
-            ->for(MeasurementUnit::factory(['abbreviation' => 'un']), 'measurementUnit')
-            ->create();
+            ->for(Category::factory(['company_id' => $companyId]))
+            ->for(MeasurementUnit::factory(['company_id' => $companyId, 'abbreviation' => 'un']), 'measurementUnit')
+            ->create(['company_id' => $companyId]);
 
         $box10 = Presentation::factory()->create([
+            'company_id' => $companyId,
             'name' => 'Caja x 10',
             'units_per_package' => 10,
         ]);
         $box20 = Presentation::factory()->create([
+            'company_id' => $companyId,
             'name' => 'Caja x 20',
             'units_per_package' => 20,
         ]);
@@ -79,15 +82,18 @@ class InventoryPresentationStockTest extends TestCase
     {
         $user = User::factory()->create();
         $warehouse = Warehouse::factory()->for(Branch::factory())->create();
+        $companyId = $warehouse->company_id;
         $product = Product::factory()
-            ->for(Category::factory())
-            ->for(MeasurementUnit::factory(['abbreviation' => 'un']), 'measurementUnit')
-            ->create();
+            ->for(Category::factory(['company_id' => $companyId]))
+            ->for(MeasurementUnit::factory(['company_id' => $companyId, 'abbreviation' => 'un']), 'measurementUnit')
+            ->create(['company_id' => $companyId]);
         $unit = Presentation::factory()->create([
+            'company_id' => $companyId,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
         $box = Presentation::factory()->create([
+            'company_id' => $companyId,
             'name' => 'Caja x 10',
             'units_per_package' => 10,
         ]);
@@ -141,11 +147,13 @@ class InventoryPresentationStockTest extends TestCase
 
         $user = User::factory()->create();
         $warehouse = Warehouse::factory()->for(Branch::factory())->create();
+        $companyId = $warehouse->company_id;
         $product = Product::factory()
-            ->for(Category::factory())
-            ->for(MeasurementUnit::factory(['abbreviation' => 'un']), 'measurementUnit')
-            ->create();
+            ->for(Category::factory(['company_id' => $companyId]))
+            ->for(MeasurementUnit::factory(['company_id' => $companyId, 'abbreviation' => 'un']), 'measurementUnit')
+            ->create(['company_id' => $companyId]);
         $box = Presentation::factory()->create([
+            'company_id' => $companyId,
             'name' => 'Caja x 10',
             'units_per_package' => 10,
         ]);

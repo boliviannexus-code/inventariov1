@@ -65,7 +65,7 @@ class WarehouseController extends Controller
     {
         $this->authorize('view', $warehouse);
 
-        $warehouse->load('branch');
+        $warehouse->load(['branch', 'company']);
 
         if ($request->ajax()) {
             return view('warehouses.partials.show', compact('warehouse'));
@@ -92,6 +92,8 @@ class WarehouseController extends Controller
 
     public function update(UpdateWarehouseRequest $request, Warehouse $warehouse): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $warehouse);
+
         $warehouse = $this->warehouses->update($warehouse, $request->validated());
 
         if ($request->ajax()) {

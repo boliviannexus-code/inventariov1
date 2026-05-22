@@ -5,6 +5,7 @@ namespace Tests\Feature\Pos;
 use App\Enums\InventoryMovementType;
 use App\Models\Branch;
 use App\Models\CashRegister;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
 use App\Models\PaymentMethod;
@@ -24,7 +25,7 @@ class PosSaleTest extends TestCase
     public function test_user_can_register_pos_sale_with_open_cash_register(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -34,8 +35,9 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Caja x 10',
             'units_per_package' => 10,
         ]);
@@ -100,7 +102,7 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_reuses_customer_history_by_document_number(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -112,11 +114,13 @@ class PosSaleTest extends TestCase
         ]);
         $customer = Customer::query()->create([
             'name' => 'Cliente Historico',
+            'company_id' => $warehouse->company_id,
             'document_number' => '789456',
             'is_active' => true,
         ]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -161,7 +165,7 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_creates_customer_with_document_and_name_when_needed(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -171,8 +175,9 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -220,7 +225,7 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_with_name_only_does_not_create_customer_record(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -230,8 +235,9 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -278,8 +284,8 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_requires_open_cash_register(): void
     {
         $user = $this->userWithPosAccess();
-        $product = Product::factory()->create();
-        $presentation = Presentation::factory()->create();
+        $product = Product::factory()->create(['company_id' => $user->company_id]);
+        $presentation = Presentation::factory()->create(['company_id' => $user->company_id]);
 
         $this
             ->actingAs($user)
@@ -299,7 +305,9 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_rejects_insufficient_stock(): void
     {
         $user = $this->userWithPosAccess();
-        $pointOfSale = PointOfSale::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create(['company_id' => $user->company_id]);
+        $pointOfSale = PointOfSale::factory()->forWarehouse($warehouse->id)->create();
         $pointOfSale->users()->sync([$user->id]);
         CashRegister::factory()->create([
             'point_of_sale_id' => $pointOfSale->id,
@@ -307,8 +315,8 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $product = Product::factory()->create();
-        $presentation = Presentation::factory()->create(['units_per_package' => 10]);
+        $product = Product::factory()->create(['company_id' => $pointOfSale->company_id]);
+        $presentation = Presentation::factory()->create(['company_id' => $pointOfSale->company_id, 'units_per_package' => 10]);
 
         $this
             ->actingAs($user)
@@ -328,7 +336,7 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_can_be_paid_with_multiple_payment_methods(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -338,10 +346,11 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
-        $qr = PaymentMethod::query()->firstOrCreate(['name' => 'QR'], ['is_active' => true]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo', 'company_id' => $warehouse->company_id], ['is_active' => true]);
+        $qr = PaymentMethod::query()->firstOrCreate(['name' => 'QR', 'company_id' => $warehouse->company_id], ['is_active' => true]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -401,7 +410,7 @@ class PosSaleTest extends TestCase
     public function test_cash_pos_sale_accepts_received_amount_and_stores_change(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -411,9 +420,10 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
-        $product = Product::factory()->create(['sale_price' => 15]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo', 'company_id' => $warehouse->company_id], ['is_active' => true]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 15]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -460,7 +470,7 @@ class PosSaleTest extends TestCase
     public function test_pos_sale_rejects_payment_total_mismatch(): void
     {
         $user = $this->userWithPosAccess();
-        $branch = Branch::factory()->create();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
         $warehouse = Warehouse::factory()->for($branch)->create();
         $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
         $pointOfSale->users()->sync([$user->id]);
@@ -470,9 +480,10 @@ class PosSaleTest extends TestCase
             'user_id' => $user->id,
             'status' => 'open',
         ]);
-        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo'], ['is_active' => true]);
-        $product = Product::factory()->create(['sale_price' => 3]);
+        $cash = PaymentMethod::query()->firstOrCreate(['name' => 'Efectivo', 'company_id' => $warehouse->company_id], ['is_active' => true]);
+        $product = Product::factory()->create(['company_id' => $warehouse->company_id, 'sale_price' => 3]);
         $presentation = Presentation::factory()->create([
+            'company_id' => $warehouse->company_id,
             'name' => 'Unidad',
             'units_per_package' => 1,
         ]);
@@ -516,7 +527,8 @@ class PosSaleTest extends TestCase
     {
         Permission::findOrCreate('pos.access');
 
-        $user = User::factory()->create();
+        $company = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
         $user->givePermissionTo('pos.access');
 
         return $user;

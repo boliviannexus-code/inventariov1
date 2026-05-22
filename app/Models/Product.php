@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,18 +14,20 @@ use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Product extends Model implements HasMedia
+class Product extends Model implements HasMedia, Auditable
 {
     public const IMAGE_COLLECTION = 'images';
 
     public const IMAGE_CONVERSION = 'optimized';
 
     /** @use HasFactory<ProductFactory> */
-    use HasFactory, InteractsWithMedia, SoftDeletes;
+    use AuditsCompanyChanges, HasFactory, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
         'name',
+        'company_id',
         'barcode',
         'category_id',
         'measurement_unit_id',
@@ -49,6 +52,11 @@ class Product extends Model implements HasMedia
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function measurementUnit(): BelongsTo
