@@ -148,6 +148,64 @@ class OpenCashRegisterTest extends TestCase
             ->assertSessionHasErrors('point_of_sale_id');
     }
 
+    public function test_open_register_is_hidden_when_user_is_removed_from_point_of_sale(): void
+    {
+        $user = $this->userWithPosAccess();
+        [$pointOfSale] = $this->pointOfSaleFor($user, ['name' => 'Caja que ya no debo ver']);
+        $pointOfSale->users()->sync([$user->id]);
+
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $pointOfSale->branch_id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $pointOfSale->users()->detach($user->id);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertDontSee('Caja que ya no debo ver')
+            ->assertSee('Abrir caja');
+
+        $this
+            ->actingAs($user)
+            ->post(route('pos.close'), [
+                'closing_amount' => 0,
+            ])
+            ->assertSessionHasErrors('closing_amount', null, 'cashClose');
+    }
+
+    public function test_open_register_is_hidden_when_user_changes_company(): void
+    {
+        $oldCompany = Company::factory()->create();
+        $newCompany = Company::factory()->create();
+        $user = $this->userWithPosAccess($oldCompany->id);
+        [$oldPointOfSale] = $this->pointOfSaleFor($user, ['name' => 'Caja empresa anterior']);
+        $oldPointOfSale->users()->sync([$user->id]);
+
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $oldPointOfSale->id,
+            'branch_id' => $oldPointOfSale->branch_id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+
+        $user->update(['company_id' => $newCompany->id]);
+        [$newPointOfSale] = $this->pointOfSaleFor($user, ['name' => 'Caja empresa nueva']);
+        $newPointOfSale->users()->sync([$user->id]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertDontSee('Caja empresa anterior')
+            ->assertSee('Caja empresa nueva')
+            ->assertSee('Abrir caja');
+    }
+
     private function pointOfSaleFor(User $user, array $attributes = []): array
     {
         $branch = Branch::factory()->create(['company_id' => $user->company_id]);

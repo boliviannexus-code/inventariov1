@@ -580,6 +580,8 @@ function initPosSaleForm() {
         const cashChange = form.querySelector('[data-pos-cash-change]');
         const useCash = form.querySelector('[data-pos-use-cash]');
         const useMixed = form.querySelector('[data-pos-use-mixed]');
+        const modeToggles = form.querySelectorAll('[data-pos-mode-toggle]');
+        const modePanels = form.querySelectorAll('[data-pos-mode-panel]');
 
         const focusTomSelect = (select) => {
             select?.tomselect?.focus();
@@ -667,6 +669,11 @@ function initPosSaleForm() {
         };
 
         const updateCashPayment = (total) => {
+            if (cashReceived && (cashReceived.dataset.autoAmount === '1' || !cashReceived.value)) {
+                cashReceived.value = total > 0 ? total.toFixed(2) : '';
+                cashReceived.dataset.autoAmount = '1';
+            }
+
             const received = Math.max(0, Number(cashReceived?.value || 0));
             const change = Math.max(0, received - total);
             const complete = total > 0 && received >= total;
@@ -755,6 +762,56 @@ function initPosSaleForm() {
             updateNames();
         };
 
+        const appendLine = ({
+            productId,
+            presentationId,
+            productName,
+            presentationName,
+            quantity,
+            unitPrice,
+            units,
+            unitLabel,
+            availablePackages,
+        }) => {
+            const wrapper = document.createElement('tbody');
+            wrapper.innerHTML = template.innerHTML.trim();
+            const row = wrapper.firstElementChild;
+
+            row.dataset.productId = String(productId);
+            row.dataset.presentationId = String(presentationId);
+            row.dataset.units = String(units);
+            row.dataset.unit = unitLabel || 'u';
+            row.dataset.availablePackages = String(availablePackages);
+            row.querySelector('[data-pos-product-input]').value = productId;
+            row.querySelector('[data-pos-presentation-input]').value = presentationId;
+            row.querySelector('[data-pos-product-name]').textContent = productName;
+            row.querySelector('[data-pos-presentation-name]').textContent = presentationName;
+            row.querySelector('[data-pos-line-quantity]').value = String(quantity);
+            row.querySelector('[data-pos-line-quantity]').max = String(availablePackages);
+            row.querySelector('[data-pos-line-price]').value = Number(unitPrice).toFixed(2);
+
+            items.append(row);
+            updateTotals();
+
+            return row;
+        };
+
+        const ensureCanAdd = (productId, presentationId, quantity, availablePackages) => {
+            const alreadySelected = selectedPackagesInCart(productId, presentationId);
+
+            if (quantity + alreadySelected > availablePackages) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    text: `Disponible: ${availablePackages} presentaciones. Ya agregaste ${alreadySelected}.`,
+                });
+
+                return false;
+            }
+
+            return true;
+        };
+
         const addLine = () => {
             const product = selectedOption(productPicker);
             const presentation = selectedOption(presentationPicker);
@@ -767,44 +824,72 @@ function initPosSaleForm() {
             }
 
             const availablePackages = Number(presentationData?.packages ?? presentation.dataset.packages ?? 0);
-            const alreadySelected = selectedPackagesInCart(product.value, presentation.value);
-
-            if (quantity + alreadySelected > availablePackages) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Stock insuficiente',
-                    text: `Disponible: ${availablePackages} presentaciones. Ya agregaste ${alreadySelected}.`,
-                });
-                return;
-            }
-
-            const wrapper = document.createElement('tbody');
-            wrapper.innerHTML = template.innerHTML.trim();
-            const row = wrapper.firstElementChild;
             const units = Number(presentationData?.units ?? presentation.dataset.units ?? 1);
             const basePrice = Number(product.dataset.price || 0);
 
-            row.dataset.productId = product.value;
-            row.dataset.presentationId = presentation.value;
-            row.dataset.units = String(units);
-            row.dataset.unit = product.dataset.unit || 'u';
-            row.dataset.availablePackages = String(availablePackages);
-            row.querySelector('[data-pos-product-input]').value = product.value;
-            row.querySelector('[data-pos-presentation-input]').value = presentation.value;
-            row.querySelector('[data-pos-product-name]').textContent = product.textContent.trim();
-            row.querySelector('[data-pos-presentation-name]').textContent = presentationData?.baseName || presentation.dataset.baseName || presentation.textContent.trim();
-            row.querySelector('[data-pos-line-quantity]').value = String(quantity);
-            row.querySelector('[data-pos-line-quantity]').max = String(availablePackages);
-            row.querySelector('[data-pos-line-price]').value = (basePrice * units).toFixed(2);
+            if (!ensureCanAdd(product.value, presentation.value, quantity, availablePackages)) {
+                return;
+            }
 
-            items.append(row);
+            appendLine({
+                productId: product.value,
+                presentationId: presentation.value,
+                productName: product.dataset.name || product.textContent.trim(),
+                presentationName: presentationData?.baseName || presentation.dataset.baseName || presentation.textContent.trim(),
+                quantity,
+                unitPrice: basePrice * units,
+                units,
+                unitLabel: product.dataset.unit || 'u',
+                availablePackages,
+            });
             productPicker.tomselect?.clear();
             presentationPicker.tomselect?.clear();
             presentationPicker.tomselect?.clearOptions();
             if (quantityPicker) {
                 quantityPicker.value = '1';
             }
-            updateTotals();
+        };
+
+        const addQuickLine = (tile) => {
+            if (!template || tile.disabled || tile.classList.contains('is-disabled')) {
+                return;
+            }
+
+            const productId = tile.dataset.productId;
+            const presentationId = tile.dataset.presentationId;
+            const availablePackages = Number(tile.dataset.stock || 0);
+            const existing = Array.from(items.querySelectorAll('[data-pos-row]'))
+                .find((row) => row.dataset.productId === String(productId) && row.dataset.presentationId === String(presentationId));
+
+            if (existing) {
+                const quantityInput = existing.querySelector('[data-pos-line-quantity]');
+                const currentQuantity = Math.max(1, Number(quantityInput.value || 1));
+
+                if (currentQuantity + 1 > availablePackages) {
+                    Swal.fire({ icon: 'warning', title: 'Stock maximo', text: `Disponible: ${availablePackages} unidades.` });
+                    return;
+                }
+
+                quantityInput.value = String(currentQuantity + 1);
+                updateTotals();
+                return;
+            }
+
+            if (!ensureCanAdd(productId, presentationId, 1, availablePackages)) {
+                return;
+            }
+
+            appendLine({
+                productId,
+                presentationId,
+                productName: tile.dataset.productName || tile.textContent.trim(),
+                presentationName: tile.dataset.presentationName || 'Unidad',
+                quantity: 1,
+                unitPrice: Number(tile.dataset.price || 0),
+                units: 1,
+                unitLabel: tile.dataset.unit || 'u',
+                availablePackages,
+            });
         };
 
         const syncCustomer = () => {
@@ -887,6 +972,7 @@ function initPosSaleForm() {
             }
 
             if (event.target.closest('[data-pos-cash-received]')) {
+                event.target.dataset.autoAmount = '0';
                 updateTotals();
             }
         });
@@ -930,6 +1016,29 @@ function initPosSaleForm() {
         useCash?.addEventListener('click', () => setPaymentMode('cash'));
         useMixed?.addEventListener('click', () => setPaymentMode('mixed'));
 
+        const posModeKey = 'inventario-pos-sale-mode';
+
+        const setPosMode = (mode, persist = true) => {
+            const selectedMode = mode === 'quick' ? 'quick' : 'normal';
+
+            modePanels.forEach((panel) => {
+                panel.classList.toggle('d-none', panel.dataset.posModePanel !== selectedMode);
+            });
+            modeToggles.forEach((button) => {
+                const active = button.dataset.posModeToggle === selectedMode;
+                button.classList.toggle('btn-primary', active);
+                button.classList.toggle('btn-outline-primary', !active);
+            });
+
+            if (persist) {
+                window.localStorage?.setItem(posModeKey, selectedMode);
+            }
+        };
+
+        modeToggles.forEach((button) => {
+            button.addEventListener('click', () => setPosMode(button.dataset.posModeToggle || 'normal'));
+        });
+
         if (document.body.dataset.posQuickAddBound !== '1') {
             document.addEventListener('keydown', (event) => {
                 if (event.key.toLowerCase() !== 'n' || !event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
@@ -969,6 +1078,13 @@ function initPosSaleForm() {
                 return;
             }
 
+            const quickProduct = event.target.closest('[data-pos-quick-product]');
+            if (quickProduct) {
+                addQuickLine(quickProduct);
+
+                return;
+            }
+
             const remove = event.target.closest('[data-pos-remove]');
             if (remove) {
                 remove.closest('[data-pos-row]')?.remove();
@@ -996,7 +1112,11 @@ function initPosSaleForm() {
         });
 
         updateTotals();
+        if (cashReceived && !cashReceived.value) {
+            cashReceived.dataset.autoAmount = '1';
+        }
         setPaymentMode(paymentMode?.value || 'cash');
+        setPosMode(window.localStorage?.getItem(posModeKey) || 'normal', false);
         syncCustomer();
         form.dataset.posInitialized = '1';
     });

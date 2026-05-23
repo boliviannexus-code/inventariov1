@@ -23,7 +23,10 @@ class PointOfSaleFactory extends Factory
             'company_id' => fn (array $attributes): ?int => Warehouse::query()->find($attributes['warehouse_id'])?->company_id,
             'name' => fake()->unique()->words(2, true),
             'code' => fake()->unique()->bothify('PV-###'),
+            'receipt_prefix' => fake()->unique()->bothify('PV-###'),
             'sequence_number' => 1,
+            'receipt_next_number' => 1,
+            'receipt_digits' => 6,
             'is_active' => true,
         ];
     }

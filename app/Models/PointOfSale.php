@@ -23,7 +23,10 @@ class PointOfSale extends Model implements Auditable
         'warehouse_id',
         'name',
         'code',
+        'receipt_prefix',
         'sequence_number',
+        'receipt_next_number',
+        'receipt_digits',
         'is_active',
     ];
 
@@ -31,6 +34,8 @@ class PointOfSale extends Model implements Auditable
     {
         return [
             'sequence_number' => 'integer',
+            'receipt_next_number' => 'integer',
+            'receipt_digits' => 'integer',
             'is_active' => 'boolean',
         ];
     }

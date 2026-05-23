@@ -193,4 +193,50 @@ class NoCompanyUserSecurityTest extends TestCase
             'email' => 'bloqueado-sin-empresa@example.test',
         ]);
     }
+
+    public function test_changing_user_company_removes_point_of_sale_assignments_from_previous_company(): void
+    {
+        Permission::findOrCreate('users.edit');
+        Role::findOrCreate('super_admin')->givePermissionTo('users.edit');
+
+        $oldCompany = Company::factory()->create();
+        $newCompany = Company::factory()->create();
+        $superAdmin = User::factory()->create(['company_id' => null]);
+        $superAdmin->assignRole('super_admin');
+        $targetUser = User::factory()->create([
+            'company_id' => $oldCompany->id,
+            'name' => 'Cajero reasignado',
+            'email' => 'cajero-reasignado@example.test',
+        ]);
+
+        $oldWarehouse = Warehouse::factory()
+            ->for(Branch::factory()->for($oldCompany))
+            ->create(['company_id' => $oldCompany->id]);
+        $newWarehouse = Warehouse::factory()
+            ->for(Branch::factory()->for($newCompany))
+            ->create(['company_id' => $newCompany->id]);
+        $oldPointOfSale = PointOfSale::factory()->forWarehouse($oldWarehouse->id)->create();
+        $newPointOfSale = PointOfSale::factory()->forWarehouse($newWarehouse->id)->create();
+        $oldPointOfSale->users()->sync([$targetUser->id]);
+        $newPointOfSale->users()->sync([$targetUser->id]);
+
+        $this
+            ->actingAs($superAdmin)
+            ->put(route('users.update', $targetUser), [
+                'company_id' => $newCompany->id,
+                'name' => $targetUser->name,
+                'email' => $targetUser->email,
+                'is_active' => '1',
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseMissing('point_of_sale_user', [
+            'point_of_sale_id' => $oldPointOfSale->id,
+            'user_id' => $targetUser->id,
+        ]);
+        $this->assertDatabaseHas('point_of_sale_user', [
+            'point_of_sale_id' => $newPointOfSale->id,
+            'user_id' => $targetUser->id,
+        ]);
+    }
 }

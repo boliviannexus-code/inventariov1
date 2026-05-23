@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use App\Support\CompanyContext;
 
 class StorePointOfSaleRequest extends FormRequest
 {
@@ -40,6 +40,9 @@ class StorePointOfSaleRequest extends FormRequest
                 Rule::unique('point_of_sales', 'warehouse_id'),
             ],
             'name' => ['required', 'string', 'max:255'],
+            'receipt_prefix' => ['nullable', 'string', 'max:40', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'receipt_next_number' => ['nullable', 'integer', 'min:1'],
+            'receipt_digits' => ['nullable', 'integer', 'min:1', 'max:12'],
             'users' => ['nullable', 'array'],
             'users.*' => [
                 'integer',
@@ -55,6 +58,9 @@ class StorePointOfSaleRequest extends FormRequest
             'branch_id' => 'sucursal',
             'warehouse_id' => 'almacen vinculado',
             'name' => 'nombre',
+            'receipt_prefix' => 'prefijo de comprobante',
+            'receipt_next_number' => 'siguiente numero de comprobante',
+            'receipt_digits' => 'digitos de comprobante',
             'users' => 'usuarios asignados',
             'users.*' => 'usuario asignado',
             'is_active' => 'estado',

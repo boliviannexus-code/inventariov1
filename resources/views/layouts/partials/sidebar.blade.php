@@ -3,6 +3,7 @@
     $operationsOpen = request()->routeIs('companies.*', 'branches.*', 'warehouses.*', 'point-of-sales.*');
     $inventoryOpen = request()->routeIs('inventory.*', 'purchases.*');
     $salesOpen = request()->routeIs('pos.*', 'sales.*');
+    $reportsOpen = request()->routeIs('reports.*');
     $adminOpen = request()->routeIs('users.*', 'roles.*', 'permissions.*', 'audits.*');
 
     $canCatalog = auth()->user()?->can('products.view')
@@ -19,6 +20,7 @@
         || auth()->user()?->can('purchases.view');
     $canSales = auth()->user()?->can('pos.access')
         || auth()->user()?->can('sales.view');
+    $canReports = auth()->user()?->can('reports.view');
     $canAdmin = auth()->user()?->can('users.view')
         || auth()->user()?->can('roles.view')
         || auth()->user()?->can('permissions.view')
@@ -113,6 +115,15 @@
                                 @endcan
                             </ul>
                         </div>
+                    </li>
+                @endif
+
+                @if ($canReports)
+                    <li class="nav-item {{ $reportsOpen ? 'active' : '' }}">
+                        <a class="nav-link" href="{{ route('reports.index') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block"><i class="ti ti-report-analytics"></i></span>
+                            <span class="nav-link-title">Reportes</span>
+                        </a>
                     </li>
                 @endif
 
@@ -281,14 +292,6 @@
                     </li>
                 @endif
 
-                @can('reports.view')
-                    <li class="nav-item disabled">
-                        <span class="nav-link disabled">
-                            <span class="nav-link-icon"><i class="ti ti-chart-bar"></i></span>
-                            <span class="nav-link-title">Reportes</span>
-                        </span>
-                    </li>
-                @endcan
             </ul>
         </div>
     </div>

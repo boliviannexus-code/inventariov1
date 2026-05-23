@@ -7,10 +7,12 @@ use App\Http\Requests\CloseCashRegisterRequest;
 use App\Http\Requests\OpenCashRegisterRequest;
 use App\Http\Requests\StoreCashRegisterExpenseRequest;
 use App\Http\Requests\StorePosSaleRequest;
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
 use App\Models\PaymentMethod;
 use App\Models\PointOfSale;
+use App\Models\Presentation;
 use App\Models\Product;
 use App\Services\CashRegisterService;
 use App\Services\SaleService;
@@ -32,6 +34,9 @@ class PosController extends Controller
         abort_unless(($request->user()?->can('pos.access') ?? false) && CompanyContext::canOperate($request->user()), 403);
 
         $openRegister = $this->cashRegisters->openRegisterFor($request->user());
+        $companyId = CompanyContext::id($request->user());
+        $stockAvailability = $openRegister ? $this->stockAvailability((int) $openRegister->pointOfSale->warehouse_id) : [];
+        $unitPresentation = $this->unitPresentation($companyId);
 
         return view('pos.index', [
             'openRegister' => $openRegister,
@@ -39,23 +44,25 @@ class PosController extends Controller
             'customers' => Customer::query()
                 ->select(['id', 'name', 'document_number'])
                 ->withCount('sales')
-                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->where('is_active', true)
                 ->whereNotNull('document_number')
                 ->orderBy('name')
                 ->get(),
             'paymentMethods' => PaymentMethod::query()
-                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'products' => Product::query()
                 ->with('measurementUnit')
-                ->when(CompanyContext::id($request->user()), fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
-            'stockAvailability' => $openRegister ? $this->stockAvailability((int) $openRegister->pointOfSale->warehouse_id) : [],
+            'quickSaleCategories' => $this->quickSaleCategories($companyId),
+            'quickUnitPresentation' => $unitPresentation,
+            'stockAvailability' => $stockAvailability,
             'cashSummary' => $openRegister ? $this->cashRegisters->cashSummary($openRegister) : null,
         ]);
     }
@@ -110,6 +117,34 @@ class PosController extends Controller
             ->orderBy('name');
 
         return $query->get();
+    }
+
+    private function quickSaleCategories(?int $companyId)
+    {
+        return Category::query()
+            ->with(['products' => fn ($products) => $products
+                ->with(['measurementUnit', 'media'])
+                ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->where('is_active', true)
+                ->orderBy('name')])
+            ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
+            ->where('is_active', true)
+            ->whereHas('products', fn ($products) => $products
+                ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
+                ->where('is_active', true))
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function unitPresentation(?int $companyId): ?Presentation
+    {
+        return Presentation::query()
+            ->when($companyId, fn ($query, $companyId) => $query->where('company_id', $companyId))
+            ->where('is_active', true)
+            ->where('units_per_package', 1)
+            ->orderByRaw("CASE WHEN LOWER(name) = 'unidad' THEN 0 ELSE 1 END")
+            ->orderBy('name')
+            ->first();
     }
 
     private function stockAvailability(int $warehouseId): array

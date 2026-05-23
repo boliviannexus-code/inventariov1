@@ -5,9 +5,11 @@ namespace Tests\Feature\Pos;
 use App\Enums\InventoryMovementType;
 use App\Models\Branch;
 use App\Models\CashRegister;
+use App\Models\Category;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
+use App\Models\MeasurementUnit;
 use App\Models\PaymentMethod;
 use App\Models\PointOfSale;
 use App\Models\Presentation;
@@ -97,6 +99,175 @@ class PosSaleTest extends TestCase
             'package_quantity' => -2,
             'reference_type' => 'sale',
         ]);
+    }
+
+    public function test_pos_product_picker_shows_stock_in_open_register_warehouse(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $unit = MeasurementUnit::factory()->create([
+            'company_id' => $user->company_id,
+            'abbreviation' => 'U',
+        ]);
+        $product = Product::factory()->create([
+            'company_id' => $user->company_id,
+            'measurement_unit_id' => $unit->id,
+            'name' => 'Producto con stock visible',
+        ]);
+        $presentation = Presentation::factory()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 12,
+            'package_quantity' => 12,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('Producto con stock visible - 12 U');
+    }
+
+    public function test_quick_sale_screen_shows_categories_products_and_unit_stock(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $category = Category::factory()->create(['company_id' => $user->company_id, 'name' => 'Bebidas']);
+        $otherCategory = Category::factory()->create(['name' => 'Otra empresa']);
+        $unit = MeasurementUnit::factory()->create(['company_id' => $user->company_id, 'abbreviation' => 'U']);
+        $presentation = Presentation::factory()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+        $product = Product::factory()->create([
+            'company_id' => $user->company_id,
+            'category_id' => $category->id,
+            'measurement_unit_id' => $unit->id,
+            'name' => 'Agua personal',
+            'sale_price' => 4,
+        ]);
+        Product::factory()->create([
+            'company_id' => $otherCategory->company_id,
+            'category_id' => $otherCategory->id,
+            'name' => 'Producto ajeno',
+        ]);
+
+        InventoryMovement::query()->create([
+            'product_id' => $product->id,
+            'presentation_id' => $presentation->id,
+            'presentation_name' => $presentation->name,
+            'warehouse_id' => $warehouse->id,
+            'user_id' => $user->id,
+            'type' => InventoryMovementType::Purchase,
+            'quantity' => 8,
+            'package_quantity' => 8,
+            'units_per_package' => 1,
+            'reference_type' => 'test',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('Venta agil')
+            ->assertSee('Bebidas')
+            ->assertSee('Agua personal')
+            ->assertSee('4.00')
+            ->assertSee('8 U')
+            ->assertDontSee('Producto ajeno');
+    }
+
+    public function test_quick_sale_screen_disables_products_without_unit_stock(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $category = Category::factory()->create(['company_id' => $user->company_id]);
+        $unit = MeasurementUnit::factory()->create(['company_id' => $user->company_id, 'abbreviation' => 'U']);
+        Presentation::factory()->create([
+            'company_id' => $user->company_id,
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+        Product::factory()->create([
+            'company_id' => $user->company_id,
+            'category_id' => $category->id,
+            'measurement_unit_id' => $unit->id,
+            'name' => 'Sin stock unitario',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('Sin stock unitario')
+            ->assertSee('Sin stock');
+    }
+
+    public function test_quick_sale_screen_requires_unit_presentation(): void
+    {
+        $user = $this->userWithPosAccess();
+        $branch = Branch::factory()->create(['company_id' => $user->company_id]);
+        $warehouse = Warehouse::factory()->for($branch)->create();
+        $pointOfSale = PointOfSale::factory()->for($branch)->create(['warehouse_id' => $warehouse->id]);
+        $pointOfSale->users()->sync([$user->id]);
+        CashRegister::factory()->create([
+            'point_of_sale_id' => $pointOfSale->id,
+            'branch_id' => $branch->id,
+            'user_id' => $user->id,
+            'status' => 'open',
+        ]);
+        $category = Category::factory()->create(['company_id' => $user->company_id]);
+        Product::factory()->create([
+            'company_id' => $user->company_id,
+            'category_id' => $category->id,
+            'name' => 'Producto sin unidad',
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('Crea una presentacion activa de 1 unidad');
     }
 
     public function test_pos_sale_reuses_customer_history_by_document_number(): void
@@ -521,6 +692,94 @@ class PosSaleTest extends TestCase
                 ],
             ])
             ->assertSessionHasErrors('payments');
+    }
+
+    public function test_receipt_numbers_are_independent_per_point_of_sale(): void
+    {
+        $firstUser = $this->userWithPosAccess();
+        $secondUser = User::factory()->create(['company_id' => $firstUser->company_id]);
+        $secondUser->givePermissionTo('pos.access');
+        $firstBranch = Branch::factory()->create(['company_id' => $firstUser->company_id]);
+        $secondBranch = Branch::factory()->create(['company_id' => $firstUser->company_id]);
+        $firstWarehouse = Warehouse::factory()->for($firstBranch)->create();
+        $secondWarehouse = Warehouse::factory()->for($secondBranch)->create();
+        $firstPointOfSale = PointOfSale::factory()->forWarehouse($firstWarehouse->id)->create([
+            'receipt_prefix' => 'PV-A',
+            'receipt_next_number' => 25,
+            'receipt_digits' => 4,
+        ]);
+        $secondPointOfSale = PointOfSale::factory()->forWarehouse($secondWarehouse->id)->create([
+            'receipt_prefix' => 'PV-B',
+            'receipt_next_number' => 1,
+            'receipt_digits' => 6,
+        ]);
+        $firstPointOfSale->users()->sync([$firstUser->id]);
+        $secondPointOfSale->users()->sync([$secondUser->id]);
+        $firstCashRegister = CashRegister::factory()->create([
+            'point_of_sale_id' => $firstPointOfSale->id,
+            'branch_id' => $firstBranch->id,
+            'user_id' => $firstUser->id,
+            'status' => 'open',
+        ]);
+        $secondCashRegister = CashRegister::factory()->create([
+            'point_of_sale_id' => $secondPointOfSale->id,
+            'branch_id' => $secondBranch->id,
+            'user_id' => $secondUser->id,
+            'status' => 'open',
+        ]);
+        $firstProduct = Product::factory()->create(['company_id' => $firstUser->company_id, 'sale_price' => 3]);
+        $secondProduct = Product::factory()->create(['company_id' => $firstUser->company_id, 'sale_price' => 3]);
+        $presentation = Presentation::factory()->create([
+            'company_id' => $firstUser->company_id,
+            'name' => 'Unidad',
+            'units_per_package' => 1,
+        ]);
+
+        foreach ([[$firstProduct, $firstWarehouse, $firstUser], [$secondProduct, $secondWarehouse, $secondUser]] as [$product, $warehouse, $user]) {
+            InventoryMovement::query()->create([
+                'product_id' => $product->id,
+                'presentation_id' => $presentation->id,
+                'presentation_name' => $presentation->name,
+                'warehouse_id' => $warehouse->id,
+                'user_id' => $user->id,
+                'type' => InventoryMovementType::Purchase,
+                'quantity' => 5,
+                'package_quantity' => 5,
+                'units_per_package' => 1,
+                'reference_type' => 'test',
+            ]);
+        }
+
+        $this->actingAs($firstUser)->post(route('pos.sales.store'), [
+            'items' => [[
+                'product_id' => $firstProduct->id,
+                'presentation_id' => $presentation->id,
+                'package_quantity' => 1,
+                'unit_price' => 3,
+            ]],
+        ])->assertRedirect(route('pos.index'));
+
+        $this->actingAs($secondUser)->post(route('pos.sales.store'), [
+            'items' => [[
+                'product_id' => $secondProduct->id,
+                'presentation_id' => $presentation->id,
+                'package_quantity' => 1,
+                'unit_price' => 3,
+            ]],
+        ])->assertRedirect(route('pos.index'));
+
+        $this->assertDatabaseHas('sales', [
+            'cash_register_id' => $firstCashRegister->id,
+            'receipt_number' => 'PV-A-0025',
+            'sequence_number' => 25,
+        ]);
+        $this->assertDatabaseHas('sales', [
+            'cash_register_id' => $secondCashRegister->id,
+            'receipt_number' => 'PV-B-000001',
+            'sequence_number' => 1,
+        ]);
+        $this->assertSame(26, $firstPointOfSale->refresh()->receipt_next_number);
+        $this->assertSame(2, $secondPointOfSale->refresh()->receipt_next_number);
     }
 
     private function userWithPosAccess(): User

@@ -17,6 +17,7 @@ use App\Http\Controllers\Web\PosController;
 use App\Http\Controllers\Web\ProductController;
 use App\Http\Controllers\Web\ProductPresentationController;
 use App\Http\Controllers\Web\PurchaseController;
+use App\Http\Controllers\Web\ReportController;
 use App\Http\Controllers\Web\RoleController;
 use App\Http\Controllers\Web\SaleController;
 use App\Http\Controllers\Web\SupplierController;
@@ -67,6 +68,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('sales', [SaleController::class, 'index'])->middleware('permission:sales.view')->name('sales.index');
     Route::get('sales/cash-registers/{cashRegister}', [SaleController::class, 'show'])->middleware('permission:sales.view')->name('sales.cash-registers.show');
     Route::post('sales/{sale}/void', [SaleController::class, 'void'])->middleware('permission:sales.void')->name('sales.void');
+    Route::get('reports', [ReportController::class, 'index'])->middleware('permission:reports.view')->name('reports.index');
+    Route::get('reports/print', [ReportController::class, 'print'])->middleware('permission:reports.view')->name('reports.print');
     Route::prefix('datatables')->name('datatables.')->group(function (): void {
         Route::get('products', [AdminDataTableController::class, 'products'])->name('products');
         Route::get('product-presentations', [AdminDataTableController::class, 'productPresentations'])->name('product-presentations');

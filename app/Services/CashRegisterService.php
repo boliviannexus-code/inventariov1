@@ -9,6 +9,7 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\User;
 use App\Support\CompanyContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -44,11 +45,7 @@ class CashRegisterService
 
     public function openRegisterFor(User $user): ?CashRegister
     {
-        return CashRegister::query()
-            ->with(['pointOfSale.warehouse', 'branch'])
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->latest('opened_at')
+        return $this->openRegisterQueryFor($user)
             ->first();
     }
 
@@ -81,11 +78,7 @@ class CashRegisterService
     public function registerExpense(array $data, User $user): CashRegisterExpense
     {
         return DB::transaction(function () use ($data, $user): CashRegisterExpense {
-            $cashRegister = CashRegister::query()
-                ->with('pointOfSale')
-                ->where('user_id', $user->id)
-                ->where('status', 'open')
-                ->latest('opened_at')
+            $cashRegister = $this->openRegisterQueryFor($user, CashRegister::query())
                 ->lockForUpdate()
                 ->first();
 
@@ -121,10 +114,7 @@ class CashRegisterService
     public function closeForUser(array $data, User $user): CashRegister
     {
         return DB::transaction(function () use ($data, $user): CashRegister {
-            $cashRegister = CashRegister::query()
-                ->where('user_id', $user->id)
-                ->where('status', 'open')
-                ->latest('opened_at')
+            $cashRegister = $this->openRegisterQueryFor($user, CashRegister::query())
                 ->lockForUpdate()
                 ->first();
 
@@ -155,11 +145,28 @@ class CashRegisterService
 
     private function ensureUserHasNoOpenRegister(User $user): void
     {
-        if (CashRegister::query()->where('user_id', $user->id)->where('status', 'open')->exists()) {
+        if ($this->openRegisterQueryFor($user)->exists()) {
             throw ValidationException::withMessages([
                 'point_of_sale_id' => 'Ya tienes una caja abierta.',
             ]);
         }
+    }
+
+    private function openRegisterQueryFor(User $user, ?Builder $query = null): Builder
+    {
+        $query ??= CashRegister::query();
+
+        return $query
+            ->with(['pointOfSale.warehouse', 'branch'])
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->whereHas('pointOfSale', function (Builder $pointOfSale) use ($user): Builder {
+                return $pointOfSale
+                    ->where('is_active', true)
+                    ->when(CompanyContext::id($user), fn (Builder $query, int $companyId): Builder => $query->where('company_id', $companyId))
+                    ->whereHas('users', fn (Builder $users): Builder => $users->whereKey($user->id));
+            })
+            ->latest('opened_at');
     }
 
     private function ensurePointOfSaleHasNoOpenRegister(PointOfSale $pointOfSale): void

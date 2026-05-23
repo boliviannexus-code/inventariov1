@@ -16,6 +16,7 @@
             <thead>
                 <tr>
                     <th>Codigo</th>
+                    <th>Siguiente comprobante</th>
                     <th>Nombre</th>
                     <th>Empresa</th>
                     <th>Sucursal</th>
@@ -29,6 +30,11 @@
                 @forelse ($pointOfSales as $pointOfSale)
                     <tr>
                         <td><span class="badge text-bg-light">{{ $pointOfSale->code }}</span></td>
+                        <td>
+                            <span class="badge text-bg-light">
+                                {{ $pointOfSale->receipt_prefix ?: $pointOfSale->code }}-{{ str_pad((string) $pointOfSale->receipt_next_number, (int) ($pointOfSale->receipt_digits ?: 6), '0', STR_PAD_LEFT) }}
+                            </span>
+                        </td>
                         <td>{{ $pointOfSale->name }}</td>
                         <td>{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</td>
                         <td>{{ $pointOfSale->branch?->name ?? '-' }}</td>
@@ -56,7 +62,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="8" message="No hay puntos de venta registrados." />
+                    <x-ui.empty-row colspan="9" message="No hay puntos de venta registrados." />
                 @endforelse
             </tbody>
         </table>

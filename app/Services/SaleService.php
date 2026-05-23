@@ -7,6 +7,7 @@ use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\InventoryMovement;
 use App\Models\PaymentMethod;
+use App\Models\PointOfSale;
 use App\Models\Presentation;
 use App\Models\Product;
 use App\Models\Sale;
@@ -26,7 +27,10 @@ class SaleService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $pointOfSale = $cashRegister->pointOfSale;
+            $pointOfSale = PointOfSale::query()
+                ->with('warehouse')
+                ->lockForUpdate()
+                ->findOrFail($cashRegister->point_of_sale_id);
             $warehouseId = (int) $pointOfSale->warehouse_id;
             $companyId = $pointOfSale->company_id;
             $items = $this->normalizeItems($data['items'], $companyId);
@@ -39,7 +43,7 @@ class SaleService
             $discount = collect($items)->sum('discount');
             $total = collect($items)->sum('subtotal');
             $payments = $this->normalizePayments($data, $total, $user);
-            $sequence = $this->nextSequence((int) $pointOfSale->id);
+            $sequence = $this->nextReceiptSequence($pointOfSale);
             $customer = $this->resolveCustomer($data, $companyId);
 
             $sale = Sale::query()->create([
@@ -51,7 +55,7 @@ class SaleService
                 'user_id' => $user->id,
                 'cash_register_id' => $cashRegister->id,
                 'point_of_sale_id' => $pointOfSale->id,
-                'receipt_number' => $this->receiptFor($pointOfSale->code, $sequence),
+                'receipt_number' => $this->receiptFor($pointOfSale, $sequence),
                 'sequence_number' => $sequence,
                 'sale_date' => now(),
                 'subtotal' => $subtotal,
@@ -94,6 +98,10 @@ class SaleService
             foreach ($payments as $payment) {
                 $sale->payments()->create($payment);
             }
+
+            $pointOfSale->update([
+                'receipt_next_number' => $sequence + 1,
+            ]);
 
             return $sale->load(['details.product', 'details.presentation', 'payments.paymentMethod', 'pointOfSale', 'cashRegister']);
         });
@@ -380,16 +388,16 @@ class SaleService
         }
     }
 
-    private function nextSequence(int $pointOfSaleId): int
+    private function nextReceiptSequence(PointOfSale $pointOfSale): int
     {
-        return ((int) Sale::query()
-            ->where('point_of_sale_id', $pointOfSaleId)
-            ->lockForUpdate()
-            ->max('sequence_number')) + 1;
+        return max(1, (int) $pointOfSale->receipt_next_number);
     }
 
-    private function receiptFor(string $pointCode, int $sequence): string
+    private function receiptFor(PointOfSale $pointOfSale, int $sequence): string
     {
-        return $pointCode.'-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
+        $prefix = trim((string) ($pointOfSale->receipt_prefix ?: $pointOfSale->code));
+        $digits = max(1, (int) ($pointOfSale->receipt_digits ?: 6));
+
+        return $prefix.'-'.str_pad((string) $sequence, $digits, '0', STR_PAD_LEFT);
     }
 }

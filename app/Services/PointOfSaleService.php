@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PointOfSale;
+use App\Models\Sale;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Repositories\PointOfSaleRepository;
@@ -27,15 +28,19 @@ class PointOfSaleService
         $pointOfSale = DB::transaction(function () use ($data): PointOfSale {
             $users = $data['users'] ?? [];
             $data = $this->normalize($data, true);
-            $warehouse = Warehouse::query()->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
+            $warehouse = Warehouse::query()->with('branch')->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
             $sequence = $this->nextSequence($warehouse->id);
             $data['company_id'] = $warehouse->company_id;
             $data['branch_id'] = $warehouse->branch_id;
             $data['sequence_number'] = $sequence;
             $data['code'] = $this->referenceFor($warehouse, $sequence);
+            $data['receipt_prefix'] = $this->receiptPrefix($data, $data['code']);
+            $data['receipt_next_number'] = max(1, (int) ($data['receipt_next_number'] ?? 1));
+            $data['receipt_digits'] = max(1, (int) ($data['receipt_digits'] ?? 6));
 
             $pointOfSale = $this->pointOfSales->create($data);
             $this->ensureUsersBelongToCompany($users, $pointOfSale->company_id);
+            $this->removeUserAssignmentsOutsideCompany($users, $pointOfSale->company_id);
             $pointOfSale->users()->sync($users);
 
             return $pointOfSale->refresh()->load(['branch', 'warehouse', 'users']);
@@ -51,7 +56,7 @@ class PointOfSaleService
         $pointOfSale = DB::transaction(function () use ($pointOfSale, $data): PointOfSale {
             $users = $data['users'] ?? [];
             $data = $this->normalize($data);
-            $warehouse = Warehouse::query()->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
+            $warehouse = Warehouse::query()->with('branch')->lockForUpdate()->findOrFail((int) $data['warehouse_id']);
             $data['company_id'] = $warehouse->company_id;
             $data['branch_id'] = $warehouse->branch_id;
 
@@ -63,8 +68,14 @@ class PointOfSaleService
                 unset($data['code'], $data['sequence_number']);
             }
 
+            $data['receipt_prefix'] = $this->receiptPrefix($data, $pointOfSale->receipt_prefix ?: $pointOfSale->code);
+            $data['receipt_next_number'] = max(1, (int) ($data['receipt_next_number'] ?? $pointOfSale->receipt_next_number));
+            $data['receipt_digits'] = max(1, (int) ($data['receipt_digits'] ?? $pointOfSale->receipt_digits));
+            $this->ensureReceiptSequenceCanContinue($pointOfSale, $data['receipt_next_number']);
+
             $pointOfSale = $this->pointOfSales->update($pointOfSale, $data);
             $this->ensureUsersBelongToCompany($users, $pointOfSale->company_id);
+            $this->removeUserAssignmentsOutsideCompany($users, $pointOfSale->company_id);
             $pointOfSale->users()->sync($users);
 
             return $pointOfSale->refresh()->load(['branch', 'warehouse', 'users']);
@@ -117,6 +128,35 @@ class PointOfSaleService
         }
     }
 
+    private function removeUserAssignmentsOutsideCompany(array $userIds, ?int $companyId): void
+    {
+        if ($companyId === null || $userIds === []) {
+            return;
+        }
+
+        $invalidPointOfSaleIds = PointOfSale::query()
+            ->select('id')
+            ->where('company_id', '<>', $companyId);
+
+        DB::table('point_of_sale_user')
+            ->whereIn('user_id', $userIds)
+            ->whereIn('point_of_sale_id', $invalidPointOfSaleIds)
+            ->delete();
+    }
+
+    private function ensureReceiptSequenceCanContinue(PointOfSale $pointOfSale, int $nextNumber): void
+    {
+        $minimum = ((int) Sale::query()
+            ->where('point_of_sale_id', $pointOfSale->id)
+            ->max('sequence_number')) + 1;
+
+        if ($nextNumber < $minimum) {
+            throw ValidationException::withMessages([
+                'receipt_next_number' => 'El siguiente numero no puede ser menor a '.$minimum.' porque ya existen ventas registradas.',
+            ]);
+        }
+    }
+
     private function nextSequence(int $warehouseId): int
     {
         return ((int) PointOfSale::query()
@@ -128,6 +168,16 @@ class PointOfSaleService
 
     private function referenceFor(Warehouse $warehouse, int $sequence): string
     {
-        return $warehouse->branch_id.'-'.$warehouse->id.'-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
+        $branchCode = trim((string) ($warehouse->branch?->code ?: $warehouse->branch_id));
+        $warehouseCode = trim((string) ($warehouse->code ?: $warehouse->id));
+
+        return $branchCode.'-'.$warehouseCode.'-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
+    }
+
+    private function receiptPrefix(array $data, string $fallback): string
+    {
+        $prefix = trim((string) ($data['receipt_prefix'] ?? ''));
+
+        return $prefix !== '' ? $prefix : $fallback;
     }
 }

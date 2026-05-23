@@ -36,6 +36,43 @@
         <input class="form-control" id="modal-point-of-sale-code" value="{{ $pointOfSale->code ?? 'Se generara automaticamente' }}" readonly>
         <div class="invalid-feedback" data-error-for="code"></div>
     </div>
+    <div class="col-md-4">
+        <label class="form-label" for="modal-point-of-sale-receipt-prefix">Prefijo comprobante</label>
+        <input
+            class="form-control"
+            id="modal-point-of-sale-receipt-prefix"
+            name="receipt_prefix"
+            value="{{ old('receipt_prefix', $pointOfSale->receipt_prefix ?? '') }}"
+            placeholder="{{ $pointOfSale->code ?? 'Automatico' }}"
+            autocomplete="off"
+        >
+        <div class="invalid-feedback" data-error-for="receipt_prefix"></div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="modal-point-of-sale-receipt-next-number">Siguiente numero</label>
+        <input
+            class="form-control"
+            id="modal-point-of-sale-receipt-next-number"
+            name="receipt_next_number"
+            type="number"
+            min="1"
+            value="{{ old('receipt_next_number', $pointOfSale->receipt_next_number ?? 1) }}"
+        >
+        <div class="invalid-feedback" data-error-for="receipt_next_number"></div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="modal-point-of-sale-receipt-digits">Digitos</label>
+        <input
+            class="form-control"
+            id="modal-point-of-sale-receipt-digits"
+            name="receipt_digits"
+            type="number"
+            min="1"
+            max="12"
+            value="{{ old('receipt_digits', $pointOfSale->receipt_digits ?? 6) }}"
+        >
+        <div class="invalid-feedback" data-error-for="receipt_digits"></div>
+    </div>
     <div class="col-12">
         <label class="form-label" for="modal-point-of-sale-users">Usuarios asignados</label>
         <select
