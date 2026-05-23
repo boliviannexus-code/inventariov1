@@ -69,6 +69,9 @@ function openAjaxModal(trigger) {
             disableBusinessFormAutocomplete(ajaxModalBody);
             initTomSelects(ajaxModalBody);
             syncPointSaleWarehouse(ajaxModalBody);
+            initDefragmentForms(ajaxModalBody);
+            initTransferForms(ajaxModalBody);
+            initStockAdjustmentForms(ajaxModalBody);
         })
         .catch((error) => {
             ajaxModal.hide();
@@ -196,6 +199,87 @@ function confirmDelete(form) {
     });
 }
 
+function confirmVoidPurchase(form) {
+    Swal.fire({
+        icon: 'warning',
+        title: form.dataset.confirmVoidPurchase ?? 'Anular compra',
+        text: 'Se revertira el stock ingresado por esta compra.',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulacion',
+        inputPlaceholder: 'Describe el motivo',
+        inputAttributes: {
+            maxlength: 500,
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Si, anular',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+        preConfirm: (value) => {
+            if (!value || value.trim().length < 3) {
+                Swal.showValidationMessage('Ingresa un motivo de al menos 3 caracteres.');
+                return false;
+            }
+
+            return value.trim();
+        },
+    }).then(async (result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const reason = document.createElement('input');
+        reason.type = 'hidden';
+        reason.name = 'void_reason';
+        reason.value = result.value;
+        form.append(reason);
+
+        if (form.matches('[data-ajax-form]')) {
+            await submitAjaxForm(form);
+            reason.remove();
+            return;
+        }
+
+        form.submit();
+    });
+}
+
+function confirmVoidSale(form) {
+    Swal.fire({
+        icon: 'warning',
+        title: form.dataset.confirmVoidSale ?? 'Anular venta',
+        text: 'Se devolvera el stock de esta venta y dejara de contar en la caja.',
+        input: 'textarea',
+        inputLabel: 'Motivo de anulacion',
+        inputPlaceholder: 'Describe el motivo',
+        inputAttributes: {
+            maxlength: 500,
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Si, anular',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+        preConfirm: (value) => {
+            if (!value || value.trim().length < 3) {
+                Swal.showValidationMessage('Ingresa un motivo de al menos 3 caracteres.');
+                return false;
+            }
+
+            return value.trim();
+        },
+    }).then((result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        const reason = document.createElement('input');
+        reason.type = 'hidden';
+        reason.name = 'void_reason';
+        reason.value = result.value;
+        form.append(reason);
+        form.submit();
+    });
+}
+
 function initAdminDataTables() {
     document.querySelectorAll('[data-datatable]').forEach((table) => {
         if (table.dataset.datatableInitialized === '1') {
@@ -316,9 +400,12 @@ function updatePurchaseRow(row) {
     const unitsPerPackage = Number(presentationOption?.dataset.units || 0);
     const unitLabel = productOption?.dataset.unit || 'u.';
     const totalUnits = quantity * unitsPerPackage;
+    const basePrice = Number(productOption?.dataset.price || 0);
+    const shouldAutoPrice = unitPrice && (unitPrice.dataset.autoPrice === '1' || !unitPrice.value);
 
-    if (unitPrice && !unitPrice.value && productOption?.dataset.price) {
-        unitPrice.value = Number(productOption.dataset.price).toFixed(2);
+    if (unitPrice && shouldAutoPrice && basePrice >= 0 && unitsPerPackage > 0) {
+        unitPrice.value = (basePrice * unitsPerPackage).toFixed(2);
+        unitPrice.dataset.autoPrice = '1';
         price = Math.max(0, rowNumberValue(row, '[data-unit-price]'));
     }
 
@@ -374,12 +461,27 @@ function initPurchaseForm() {
                 refreshPurchaseReference(form);
             }
 
+            if (event.target.closest('[data-purchase-product], [data-purchase-presentation]')) {
+                const row = event.target.closest('[data-purchase-item-row]');
+                const unitPrice = row?.querySelector('[data-unit-price]');
+
+                if (unitPrice) {
+                    unitPrice.dataset.autoPrice = '1';
+                }
+            }
+
             if (event.target.closest('[data-purchase-product], [data-purchase-presentation], [data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
         });
 
         form.addEventListener('input', (event) => {
+            const unitPrice = event.target.closest('[data-unit-price]');
+
+            if (unitPrice) {
+                unitPrice.dataset.autoPrice = '0';
+            }
+
             if (event.target.closest('[data-package-quantity], [data-unit-price]')) {
                 updatePurchaseTotals(form);
             }
@@ -468,6 +570,18 @@ function initPosSaleForm() {
         const empty = form.querySelector('[data-pos-empty]');
         const submit = form.querySelector('[data-pos-submit]');
         const stockAvailability = JSON.parse(form.dataset.posStock || '{}');
+        const customers = JSON.parse(form.dataset.posCustomers || '[]');
+        const payments = form.querySelector('[data-pos-payments]');
+        const paymentTemplate = form.querySelector('[data-pos-payment-template]');
+        const paymentMode = form.querySelector('[data-pos-payment-mode]');
+        const cashPanel = form.querySelector('[data-pos-cash-panel]');
+        const mixedPanel = form.querySelector('[data-pos-mixed-panel]');
+        const cashReceived = form.querySelector('[data-pos-cash-received]');
+        const cashChange = form.querySelector('[data-pos-cash-change]');
+        const useCash = form.querySelector('[data-pos-use-cash]');
+        const useMixed = form.querySelector('[data-pos-use-mixed]');
+        const modeToggles = form.querySelectorAll('[data-pos-mode-toggle]');
+        const modePanels = form.querySelectorAll('[data-pos-mode-panel]');
 
         const focusTomSelect = (select) => {
             select?.tomselect?.focus();
@@ -536,6 +650,76 @@ function initPosSaleForm() {
             });
         };
 
+        const updatePaymentNames = () => {
+            if (paymentMode?.value !== 'mixed') {
+                payments?.querySelectorAll('[data-pos-payment-row]').forEach((row) => {
+                    row.querySelector('[data-pos-payment-method]').removeAttribute('name');
+                    row.querySelector('[data-pos-payment-amount]').removeAttribute('name');
+                    row.querySelector('[data-pos-payment-reference]').removeAttribute('name');
+                });
+
+                return;
+            }
+
+            payments?.querySelectorAll('[data-pos-payment-row]').forEach((row, index) => {
+                row.querySelector('[data-pos-payment-method]').name = `payments[${index}][payment_method_id]`;
+                row.querySelector('[data-pos-payment-amount]').name = `payments[${index}][amount]`;
+                row.querySelector('[data-pos-payment-reference]').name = `payments[${index}][reference]`;
+            });
+        };
+
+        const updateCashPayment = (total) => {
+            if (cashReceived && (cashReceived.dataset.autoAmount === '1' || !cashReceived.value)) {
+                cashReceived.value = total > 0 ? total.toFixed(2) : '';
+                cashReceived.dataset.autoAmount = '1';
+            }
+
+            const received = Math.max(0, Number(cashReceived?.value || 0));
+            const change = Math.max(0, received - total);
+            const complete = total > 0 && received >= total;
+
+            if (cashChange) {
+                cashChange.textContent = change.toFixed(2);
+                cashChange.classList.toggle('text-success', complete);
+                cashChange.classList.toggle('text-danger', total > 0 && !complete);
+            }
+
+            return complete;
+        };
+
+        const updatePayments = (total) => {
+            const rows = payments?.querySelectorAll('[data-pos-payment-row]') ?? [];
+            const paidTarget = form.querySelector('[data-pos-paid]');
+            const dueTarget = form.querySelector('[data-pos-due]');
+
+            if (rows.length === 1) {
+                const amount = rows[0].querySelector('[data-pos-payment-amount]');
+                if (amount && (amount.dataset.autoAmount === '1' || !amount.value)) {
+                    amount.value = total > 0 ? total.toFixed(2) : '';
+                    amount.dataset.autoAmount = '1';
+                }
+            }
+
+            let paid = 0;
+            rows.forEach((row) => {
+                paid += Math.max(0, Number(row.querySelector('[data-pos-payment-amount]').value || 0));
+            });
+
+            const due = Math.max(0, total - paid);
+            if (paidTarget) {
+                paidTarget.textContent = paid.toFixed(2);
+            }
+            if (dueTarget) {
+                dueTarget.textContent = due.toFixed(2);
+                dueTarget.classList.toggle('text-danger', Math.abs(total - paid) >= 0.01);
+                dueTarget.classList.toggle('text-success', total > 0 && Math.abs(total - paid) < 0.01);
+            }
+
+            updatePaymentNames();
+
+            return Math.abs(total - paid) < 0.01 && rows.length > 0;
+        };
+
         const updateRow = (row) => {
             const quantity = Math.max(1, Number(row.querySelector('[data-pos-line-quantity]').value || 1));
             const price = Math.max(0, Number(row.querySelector('[data-pos-line-price]').value || 0));
@@ -563,12 +747,69 @@ function initPosSaleForm() {
 
             form.querySelector('[data-pos-subtotal]').textContent = subtotal.toFixed(2);
             form.querySelector('[data-pos-discount]').textContent = discount.toFixed(2);
-            form.querySelector('[data-pos-total]').textContent = Math.max(0, subtotal - discount).toFixed(2);
+            const total = Math.max(0, subtotal - discount);
+            form.querySelector('[data-pos-total]').textContent = total.toFixed(2);
             empty?.classList.toggle('d-none', rows.length > 0);
+            const paymentsComplete = paymentMode?.value === 'mixed'
+                ? updatePayments(total)
+                : updateCashPayment(total);
             if (submit) {
-                submit.disabled = rows.length === 0;
+                submit.disabled = rows.length === 0 || !paymentsComplete;
+            }
+            if (paymentMode?.value !== 'mixed') {
+                updatePaymentNames();
             }
             updateNames();
+        };
+
+        const appendLine = ({
+            productId,
+            presentationId,
+            productName,
+            presentationName,
+            quantity,
+            unitPrice,
+            units,
+            unitLabel,
+            availablePackages,
+        }) => {
+            const wrapper = document.createElement('tbody');
+            wrapper.innerHTML = template.innerHTML.trim();
+            const row = wrapper.firstElementChild;
+
+            row.dataset.productId = String(productId);
+            row.dataset.presentationId = String(presentationId);
+            row.dataset.units = String(units);
+            row.dataset.unit = unitLabel || 'u';
+            row.dataset.availablePackages = String(availablePackages);
+            row.querySelector('[data-pos-product-input]').value = productId;
+            row.querySelector('[data-pos-presentation-input]').value = presentationId;
+            row.querySelector('[data-pos-product-name]').textContent = productName;
+            row.querySelector('[data-pos-presentation-name]').textContent = presentationName;
+            row.querySelector('[data-pos-line-quantity]').value = String(quantity);
+            row.querySelector('[data-pos-line-quantity]').max = String(availablePackages);
+            row.querySelector('[data-pos-line-price]').value = Number(unitPrice).toFixed(2);
+
+            items.append(row);
+            updateTotals();
+
+            return row;
+        };
+
+        const ensureCanAdd = (productId, presentationId, quantity, availablePackages) => {
+            const alreadySelected = selectedPackagesInCart(productId, presentationId);
+
+            if (quantity + alreadySelected > availablePackages) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Stock insuficiente',
+                    text: `Disponible: ${availablePackages} presentaciones. Ya agregaste ${alreadySelected}.`,
+                });
+
+                return false;
+            }
+
+            return true;
         };
 
         const addLine = () => {
@@ -583,44 +824,126 @@ function initPosSaleForm() {
             }
 
             const availablePackages = Number(presentationData?.packages ?? presentation.dataset.packages ?? 0);
-            const alreadySelected = selectedPackagesInCart(product.value, presentation.value);
-
-            if (quantity + alreadySelected > availablePackages) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Stock insuficiente',
-                    text: `Disponible: ${availablePackages} presentaciones. Ya agregaste ${alreadySelected}.`,
-                });
-                return;
-            }
-
-            const wrapper = document.createElement('tbody');
-            wrapper.innerHTML = template.innerHTML.trim();
-            const row = wrapper.firstElementChild;
             const units = Number(presentationData?.units ?? presentation.dataset.units ?? 1);
             const basePrice = Number(product.dataset.price || 0);
 
-            row.dataset.productId = product.value;
-            row.dataset.presentationId = presentation.value;
-            row.dataset.units = String(units);
-            row.dataset.unit = product.dataset.unit || 'u';
-            row.dataset.availablePackages = String(availablePackages);
-            row.querySelector('[data-pos-product-input]').value = product.value;
-            row.querySelector('[data-pos-presentation-input]').value = presentation.value;
-            row.querySelector('[data-pos-product-name]').textContent = product.textContent.trim();
-            row.querySelector('[data-pos-presentation-name]').textContent = presentationData?.baseName || presentation.dataset.baseName || presentation.textContent.trim();
-            row.querySelector('[data-pos-line-quantity]').value = String(quantity);
-            row.querySelector('[data-pos-line-quantity]').max = String(availablePackages);
-            row.querySelector('[data-pos-line-price]').value = (basePrice * units).toFixed(2);
+            if (!ensureCanAdd(product.value, presentation.value, quantity, availablePackages)) {
+                return;
+            }
 
-            items.append(row);
+            appendLine({
+                productId: product.value,
+                presentationId: presentation.value,
+                productName: product.dataset.name || product.textContent.trim(),
+                presentationName: presentationData?.baseName || presentation.dataset.baseName || presentation.textContent.trim(),
+                quantity,
+                unitPrice: basePrice * units,
+                units,
+                unitLabel: product.dataset.unit || 'u',
+                availablePackages,
+            });
             productPicker.tomselect?.clear();
             presentationPicker.tomselect?.clear();
             presentationPicker.tomselect?.clearOptions();
             if (quantityPicker) {
                 quantityPicker.value = '1';
             }
-            updateTotals();
+        };
+
+        const addQuickLine = (tile) => {
+            if (!template || tile.disabled || tile.classList.contains('is-disabled')) {
+                return;
+            }
+
+            const productId = tile.dataset.productId;
+            const presentationId = tile.dataset.presentationId;
+            const availablePackages = Number(tile.dataset.stock || 0);
+            const existing = Array.from(items.querySelectorAll('[data-pos-row]'))
+                .find((row) => row.dataset.productId === String(productId) && row.dataset.presentationId === String(presentationId));
+
+            if (existing) {
+                const quantityInput = existing.querySelector('[data-pos-line-quantity]');
+                const currentQuantity = Math.max(1, Number(quantityInput.value || 1));
+
+                if (currentQuantity + 1 > availablePackages) {
+                    Swal.fire({ icon: 'warning', title: 'Stock maximo', text: `Disponible: ${availablePackages} unidades.` });
+                    return;
+                }
+
+                quantityInput.value = String(currentQuantity + 1);
+                updateTotals();
+                return;
+            }
+
+            if (!ensureCanAdd(productId, presentationId, 1, availablePackages)) {
+                return;
+            }
+
+            appendLine({
+                productId,
+                presentationId,
+                productName: tile.dataset.productName || tile.textContent.trim(),
+                presentationName: tile.dataset.presentationName || 'Unidad',
+                quantity: 1,
+                unitPrice: Number(tile.dataset.price || 0),
+                units: 1,
+                unitLabel: tile.dataset.unit || 'u',
+                availablePackages,
+            });
+        };
+
+        const syncCustomer = () => {
+            const documentInput = form.querySelector('[data-pos-customer-document]');
+            const nameInput = form.querySelector('[data-pos-customer-name]');
+            const customerIdInput = form.querySelector('[data-pos-customer-id]');
+            const status = form.querySelector('[data-pos-customer-status]');
+            const documentNumber = documentInput?.value.trim() || '';
+            const customerName = nameInput?.value.trim() || '';
+            const customer = customers.find((item) => String(item.document_number || '').trim() === documentNumber);
+            const autoFilledName = nameInput?.dataset.autoFilledName || '';
+
+            const clearAutoFilledName = () => {
+                if (nameInput && autoFilledName && nameInput.value.trim() === autoFilledName) {
+                    nameInput.value = '';
+                    nameInput.dataset.autoFilledName = '';
+                }
+            };
+
+            if (!documentNumber) {
+                if (customerIdInput) {
+                    customerIdInput.value = '';
+                }
+                clearAutoFilledName();
+                if (status) {
+                    status.textContent = nameInput?.value.trim()
+                        ? 'Se guardara el nombre solo en esta venta, sin registrar cliente.'
+                        : 'Sin cliente asociado.';
+                }
+                return;
+            }
+
+            if (customer) {
+                if (customerIdInput) {
+                    customerIdInput.value = String(customer.id);
+                }
+                if (nameInput && (!nameInput.value.trim() || nameInput.value.trim() === autoFilledName)) {
+                    nameInput.value = customer.name || '';
+                    nameInput.dataset.autoFilledName = customer.name || '';
+                }
+                if (status) {
+                    const sales = Number(customer.sales_count || 0);
+                    status.textContent = `Cliente encontrado: ${customer.name}. Historial: ${sales} venta(s).`;
+                }
+                return;
+            }
+
+            if (customerIdInput) {
+                customerIdInput.value = '';
+            }
+            clearAutoFilledName();
+            if (status) {
+                status.textContent = 'Documento nuevo. Ingresa el nombre para registrar el cliente.';
+            }
         };
 
         form.querySelectorAll('[data-add-pos-item]').forEach((button) => {
@@ -639,6 +962,17 @@ function initPosSaleForm() {
                         Swal.fire({ icon: 'warning', title: 'Stock maximo', text: `Disponible: ${available} presentaciones.` });
                     }
                 }
+                updateTotals();
+            }
+
+            const paymentAmount = event.target.closest('[data-pos-payment-amount]');
+            if (paymentAmount) {
+                paymentAmount.dataset.autoAmount = '0';
+                updateTotals();
+            }
+
+            if (event.target.closest('[data-pos-cash-received]')) {
+                event.target.dataset.autoAmount = '0';
                 updateTotals();
             }
         });
@@ -662,6 +996,48 @@ function initPosSaleForm() {
                 window.setTimeout(() => focusTomSelect(productPicker), 80);
             }
         });
+        form.querySelector('[data-pos-customer-document]')?.addEventListener('input', syncCustomer);
+        form.querySelector('[data-pos-customer-document]')?.addEventListener('change', syncCustomer);
+        form.querySelector('[data-pos-customer-name]')?.addEventListener('input', syncCustomer);
+
+        const setPaymentMode = (mode) => {
+            if (paymentMode) {
+                paymentMode.value = mode;
+            }
+            cashPanel?.classList.toggle('d-none', mode !== 'cash');
+            mixedPanel?.classList.toggle('d-none', mode !== 'mixed');
+            useCash?.classList.toggle('btn-primary', mode === 'cash');
+            useCash?.classList.toggle('btn-outline-primary', mode !== 'cash');
+            useMixed?.classList.toggle('btn-primary', mode === 'mixed');
+            useMixed?.classList.toggle('btn-outline-primary', mode !== 'mixed');
+            updateTotals();
+        };
+
+        useCash?.addEventListener('click', () => setPaymentMode('cash'));
+        useMixed?.addEventListener('click', () => setPaymentMode('mixed'));
+
+        const posModeKey = 'inventario-pos-sale-mode';
+
+        const setPosMode = (mode, persist = true) => {
+            const selectedMode = mode === 'quick' ? 'quick' : 'normal';
+
+            modePanels.forEach((panel) => {
+                panel.classList.toggle('d-none', panel.dataset.posModePanel !== selectedMode);
+            });
+            modeToggles.forEach((button) => {
+                const active = button.dataset.posModeToggle === selectedMode;
+                button.classList.toggle('btn-primary', active);
+                button.classList.toggle('btn-outline-primary', !active);
+            });
+
+            if (persist) {
+                window.localStorage?.setItem(posModeKey, selectedMode);
+            }
+        };
+
+        modeToggles.forEach((button) => {
+            button.addEventListener('click', () => setPosMode(button.dataset.posModeToggle || 'normal'));
+        });
 
         if (document.body.dataset.posQuickAddBound !== '1') {
             document.addEventListener('keydown', (event) => {
@@ -684,17 +1060,451 @@ function initPosSaleForm() {
         }
 
         form.addEventListener('click', (event) => {
-            const remove = event.target.closest('[data-pos-remove]');
-            if (!remove) {
+            const addPayment = event.target.closest('[data-add-pos-payment]');
+            if (addPayment && payments && paymentTemplate) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = paymentTemplate.innerHTML.trim();
+                const row = wrapper.firstElementChild;
+                const amount = row.querySelector('[data-pos-payment-amount]');
+
+                if (amount) {
+                    amount.dataset.autoAmount = '0';
+                }
+
+                payments.append(row);
+                updateTotals();
+                amount?.focus();
+
                 return;
             }
 
-            remove.closest('[data-pos-row]')?.remove();
-            updateTotals();
+            const quickProduct = event.target.closest('[data-pos-quick-product]');
+            if (quickProduct) {
+                addQuickLine(quickProduct);
+
+                return;
+            }
+
+            const remove = event.target.closest('[data-pos-remove]');
+            if (remove) {
+                remove.closest('[data-pos-row]')?.remove();
+                updateTotals();
+
+                return;
+            }
+
+            const removePayment = event.target.closest('[data-remove-pos-payment]');
+            if (removePayment) {
+                const rows = payments?.querySelectorAll('[data-pos-payment-row]') ?? [];
+                const row = removePayment.closest('[data-pos-payment-row]');
+
+                if (rows.length <= 1) {
+                    row?.querySelectorAll('input').forEach((input) => {
+                        input.value = '';
+                        input.dataset.autoAmount = input.matches('[data-pos-payment-amount]') ? '1' : '0';
+                    });
+                } else {
+                    row?.remove();
+                }
+
+                updateTotals();
+            }
         });
 
         updateTotals();
+        if (cashReceived && !cashReceived.value) {
+            cashReceived.dataset.autoAmount = '1';
+        }
+        setPaymentMode(paymentMode?.value || 'cash');
+        setPosMode(window.localStorage?.getItem(posModeKey) || 'normal', false);
+        syncCustomer();
         form.dataset.posInitialized = '1';
+    });
+}
+
+function initDefragmentForms(scope = document) {
+    scope.querySelectorAll('[data-defragment-form]').forEach((form) => {
+        if (form.dataset.defragmentInitialized === '1') {
+            return;
+        }
+
+        const presentation = form.querySelector('[data-defragment-presentation]');
+        const quantity = form.querySelector('[data-defragment-quantity]');
+        const preview = form.querySelector('[data-defragment-preview]');
+
+        const syncLimits = () => {
+            const option = selectedOption(presentation);
+            const max = Math.max(1, Number(option?.dataset.max || 1));
+            const units = Math.max(1, Number(option?.dataset.units || 1));
+            const value = Math.min(max, Math.max(1, Number(quantity?.value || 1)));
+
+            if (quantity) {
+                quantity.max = String(max);
+                quantity.value = String(value);
+            }
+
+            if (preview) {
+                preview.textContent = `Se convertiran ${value} empaque(s) en ${value * units} unidad(es). Disponible: ${max}.`;
+            }
+        };
+
+        presentation?.addEventListener('change', syncLimits);
+        quantity?.addEventListener('input', syncLimits);
+        syncLimits();
+        form.dataset.defragmentInitialized = '1';
+    });
+}
+
+function initTransferForms(scope = document) {
+    scope.querySelectorAll('[data-transfer-form]').forEach((form) => {
+        if (form.dataset.transferInitialized === '1') {
+            return;
+        }
+
+        const source = form.querySelector('[data-transfer-source]');
+        const target = form.querySelector('[data-transfer-target]');
+        const product = form.querySelector('[data-transfer-product]');
+        const presentation = form.querySelector('[data-transfer-presentation]');
+        const units = form.querySelector('[data-transfer-units]');
+        const packages = form.querySelector('[data-transfer-packages]');
+        const summary = form.querySelector('[data-transfer-summary]');
+        const submit = form.querySelector('[data-transfer-submit]');
+        const unitsHelp = form.querySelector('[data-transfer-units-help]');
+        const packagesHelp = form.querySelector('[data-transfer-packages-help]');
+        const stockAvailability = JSON.parse(form.dataset.transferStock || '{}');
+        const productOptions = Array.from(product?.querySelectorAll('option[value]') ?? [])
+            .filter((option) => option.value)
+            .map((option) => ({
+                value: option.value,
+                text: option.dataset.name || option.textContent.trim(),
+            }));
+
+        const tomOption = (select) => {
+            const value = select?.value;
+
+            return value && select?.tomselect ? select.tomselect.options[value] : null;
+        };
+
+        const setFieldError = (field, errorKey, message = '') => {
+            if (!field) {
+                return;
+            }
+
+            field.setCustomValidity(message);
+            field.classList.toggle('is-invalid', message !== '');
+            field.tomselect?.wrapper?.classList.toggle('is-invalid', message !== '');
+
+            const feedback = form.querySelector(`[data-error-for="${errorKey}"]`);
+            if (feedback) {
+                feedback.textContent = message;
+            }
+        };
+
+        const selectedAvailability = () => {
+            const warehouseStock = stockAvailability[source?.value] || {};
+
+            return warehouseStock[product?.value] || { stock: 0, presentations: [] };
+        };
+
+        const selectedPresentation = () => {
+            const value = presentation?.value;
+
+            if (!value) {
+                return null;
+            }
+
+            return selectedAvailability().presentations.find((item) => String(item.id) === String(value)) || tomOption(presentation);
+        };
+
+        const refreshProductOptions = () => {
+            if (!product?.tomselect) {
+                return;
+            }
+
+            const selected = product.value;
+
+            product.tomselect.clear(true);
+            product.tomselect.clearOptions();
+
+            productOptions.forEach((option) => {
+                const stock = Number(stockAvailability[source?.value]?.[option.value]?.stock || 0);
+                const showStock = Boolean(source?.value);
+
+                product.tomselect.addOption({
+                    value: option.value,
+                    text: showStock ? `${option.text} - ${stock} u.` : option.text,
+                    baseName: option.text,
+                    stock,
+                    disabled: showStock && stock <= 0,
+                });
+            });
+
+            product.tomselect.refreshOptions(false);
+
+            if (selected && (!source?.value || Number(stockAvailability[source.value]?.[selected]?.stock || 0) > 0)) {
+                product.tomselect.setValue(selected, true);
+            }
+        };
+
+        const refreshPresentationOptions = () => {
+            if (!presentation?.tomselect) {
+                return;
+            }
+
+            const previous = presentation.value;
+            const availability = selectedAvailability();
+            const hasSelection = Boolean(source?.value && product?.value);
+
+            presentation.tomselect.clear(true);
+            presentation.tomselect.clearOptions();
+            presentation.tomselect.addOption({
+                value: '',
+                text: hasSelection ? `Unidad base - ${Number(availability.base_units || 0)} u.` : 'Selecciona almacen y producto',
+                baseName: 'Unidad base',
+                packages: Number(availability.base_units || 0),
+                unitsAvailable: Number(availability.base_units || 0),
+                units: 1,
+            });
+
+            (availability.presentations || []).forEach((item) => {
+                presentation.tomselect.addOption({
+                    value: String(item.id),
+                    text: `${item.name} - ${item.packages} disp. (${item.units} u.)`,
+                    baseName: item.name,
+                    packages: Number(item.packages || 0),
+                    unitsAvailable: Number(item.units || 0),
+                    units: Number(item.units_per_package || 1),
+                    disabled: Number(item.packages || 0) <= 0,
+                });
+            });
+
+            presentation.tomselect.refreshOptions(false);
+            presentation.tomselect.setValue(
+                (availability.presentations || []).some((item) => String(item.id) === String(previous)) ? previous : '',
+                true
+            );
+
+            if (hasSelection) {
+                presentation.tomselect.enable();
+            } else {
+                presentation.tomselect.disable();
+            }
+        };
+
+        const clampNumber = (input, min, max) => {
+            if (!input) {
+                return 0;
+            }
+
+            const raw = Number(input.value || min);
+            const safeMax = Math.max(min, Number(max || 0));
+            const value = Math.min(safeMax, Math.max(min, Number.isFinite(raw) ? raw : min));
+
+            input.value = String(value);
+
+            return value;
+        };
+
+        const syncTransfer = () => {
+            let valid = true;
+            const sameWarehouse = Boolean(source?.value && target?.value && source.value === target.value);
+            const availability = selectedAvailability();
+            const selectedStock = Number(availability.base_units || 0);
+            const presentationData = selectedPresentation();
+
+            setFieldError(target, 'target_warehouse_id', sameWarehouse ? 'El almacen destino debe ser diferente al origen.' : '');
+
+            if (sameWarehouse) {
+                valid = false;
+            }
+
+            if (!source?.value || !target?.value || !product?.value) {
+                valid = false;
+            }
+
+            if (presentationData) {
+                const maxPackages = Number(presentationData.packages || 0);
+                const unitsPerPackage = Number(presentationData.units || presentationData.units_per_package || 1);
+                const packageValue = clampNumber(packages, 1, maxPackages);
+                const totalUnits = packageValue * unitsPerPackage;
+
+                if (packages) {
+                    packages.disabled = false;
+                    packages.required = true;
+                    packages.max = String(Math.max(1, maxPackages));
+                }
+
+                if (units) {
+                    units.readOnly = true;
+                    units.required = false;
+                    units.value = String(totalUnits);
+                    units.max = String(Math.max(1, Number(presentationData.unitsAvailable || totalUnits)));
+                }
+                setFieldError(units, 'items.0.quantity', '');
+
+                if (unitsHelp) {
+                    unitsHelp.textContent = 'Las unidades se calculan automaticamente desde la presentacion.';
+                }
+
+                if (packagesHelp) {
+                    packagesHelp.textContent = `Disponible: ${maxPackages} presentacion(es).`;
+                }
+
+                setFieldError(packages, 'items.0.package_quantity', maxPackages <= 0 || packageValue > maxPackages
+                    ? `Disponible: ${maxPackages} presentacion(es).`
+                    : '');
+
+                if (maxPackages <= 0 || packageValue > maxPackages) {
+                    valid = false;
+                }
+
+                if (summary) {
+                    summary.textContent = `${packageValue} presentacion(es) x ${unitsPerPackage} unidad(es) = ${totalUnits} unidad(es). Stock disponible: ${maxPackages} presentacion(es), ${Number(presentationData.unitsAvailable || 0)} unidad(es).`;
+                }
+            } else {
+                const unitValue = clampNumber(units, 1, selectedStock);
+
+                if (packages) {
+                    packages.disabled = true;
+                    packages.required = false;
+                    packages.value = '';
+                    packages.removeAttribute('max');
+                    setFieldError(packages, 'items.0.package_quantity', '');
+                }
+
+                if (units) {
+                    units.readOnly = false;
+                    units.required = true;
+                    units.max = String(Math.max(1, selectedStock));
+                }
+
+                if (unitsHelp) {
+                    unitsHelp.textContent = `Disponible: ${selectedStock} unidad(es) suelta(s).`;
+                }
+
+                if (packagesHelp) {
+                    packagesHelp.textContent = 'Se habilita cuando selecciones caja, paquete u otra presentacion.';
+                }
+
+                setFieldError(units, 'items.0.quantity', selectedStock <= 0 || unitValue > selectedStock
+                    ? `Disponible: ${selectedStock} unidad(es).`
+                    : '');
+
+                if (selectedStock <= 0 || unitValue > selectedStock) {
+                    valid = false;
+                }
+
+                if (summary) {
+                    summary.textContent = product?.value
+                        ? `${unitValue} unidad(es) suelta(s) seleccionada(s). Stock base disponible: ${selectedStock} unidad(es).`
+                        : 'Selecciona almacen origen y producto para ver existencias disponibles.';
+                }
+            }
+
+            if (summary) {
+                summary.classList.toggle('alert-info', valid);
+                summary.classList.toggle('alert-warning', !valid);
+            }
+
+            if (submit) {
+                submit.disabled = !valid;
+            }
+
+            return valid;
+        };
+
+        source?.addEventListener('change', () => {
+            refreshProductOptions();
+            refreshPresentationOptions();
+            syncTransfer();
+        });
+        target?.addEventListener('change', syncTransfer);
+        product?.addEventListener('change', () => {
+            refreshPresentationOptions();
+            syncTransfer();
+        });
+        presentation?.addEventListener('change', syncTransfer);
+        units?.addEventListener('input', syncTransfer);
+        packages?.addEventListener('input', syncTransfer);
+
+        form.addEventListener('submit', (event) => {
+            if (syncTransfer()) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Revisa la transferencia',
+                text: 'Selecciona almacenes diferentes y una cantidad disponible para continuar.',
+            });
+        });
+
+        refreshProductOptions();
+        refreshPresentationOptions();
+        syncTransfer();
+        form.dataset.transferInitialized = '1';
+    });
+}
+
+function initStockAdjustmentForms(scope = document) {
+    scope.querySelectorAll('[data-stock-adjustment-form]').forEach((form) => {
+        if (form.dataset.stockAdjustmentInitialized === '1') {
+            return;
+        }
+
+        const presentation = form.querySelector('[data-stock-adjustment-presentation]');
+        const current = form.querySelector('[data-stock-adjustment-current]');
+        const counted = form.querySelector('[data-stock-adjustment-counted]');
+        const preview = form.querySelector('[data-stock-adjustment-preview]');
+
+        const syncPreview = () => {
+            const option = selectedOption(presentation);
+            const currentQuantity = Number(option?.dataset.current || 0);
+            const unitsPerPackage = Number(option?.dataset.units || 1);
+            const label = option?.dataset.label || 'Unidad base';
+            const countedQuantity = Math.max(0, Number(counted?.value || 0));
+            const difference = countedQuantity - currentQuantity;
+            const unitDifference = Math.abs(difference) * unitsPerPackage;
+
+            if (current) {
+                current.value = String(currentQuantity);
+            }
+
+            if (counted && Number(counted.value || 0) < 0) {
+                counted.value = '0';
+            }
+
+            if (!preview) {
+                return;
+            }
+
+            preview.classList.toggle('alert-info', difference === 0);
+            preview.classList.toggle('alert-success', difference > 0);
+            preview.classList.toggle('alert-warning', difference < 0);
+
+            if (difference === 0) {
+                preview.textContent = `Sin diferencia para ${label}: no se generara movimiento.`;
+                return;
+            }
+
+            const action = difference > 0 ? 'ingreso' : 'salida';
+            const packageLabel = presentation?.value ? 'presentacion(es)' : 'unidad(es) suelta(s)';
+            preview.textContent = `Se generara un ${action} por ${Math.abs(difference)} ${packageLabel}, equivalente a ${unitDifference} unidad(es).`;
+        };
+
+        presentation?.addEventListener('change', () => {
+            const option = selectedOption(presentation);
+            if (counted) {
+                counted.value = option?.dataset.current || '0';
+            }
+            syncPreview();
+        });
+        counted?.addEventListener('input', syncPreview);
+
+        syncPreview();
+        form.dataset.stockAdjustmentInitialized = '1';
     });
 }
 
@@ -720,13 +1530,120 @@ function initUserDropdowns() {
     });
 }
 
+function initSidebarToggle() {
+    const toggle = document.querySelector('[data-sidebar-toggle]');
+    const sidebar = document.querySelector('.app-sidebar');
+
+    if (!toggle || toggle.dataset.sidebarToggleInitialized === '1') {
+        return;
+    }
+
+    const icon = toggle.querySelector('i');
+    document.querySelectorAll('.app-sidebar .nav-link, .app-sidebar .app-menu-toggle').forEach((item) => {
+        const label = item.querySelector('.nav-link-title')?.textContent?.trim();
+
+        if (label && !item.getAttribute('title')) {
+            item.setAttribute('title', label);
+        }
+    });
+
+    const syncState = () => {
+        const collapsed = document.body.classList.contains('app-sidebar-collapsed');
+        toggle.setAttribute('aria-label', collapsed ? 'Expandir menu' : 'Replegar menu');
+        toggle.setAttribute('title', collapsed ? 'Expandir menu' : 'Replegar menu');
+
+        if (icon) {
+            icon.className = collapsed ? 'ti ti-layout-sidebar-left-expand' : 'ti ti-layout-sidebar-left-collapse';
+        }
+    };
+
+    toggle.addEventListener('click', () => {
+        document.body.classList.toggle('app-sidebar-collapsed');
+        document.body.classList.remove('app-sidebar-peek');
+        localStorage.setItem('app-sidebar-collapsed', document.body.classList.contains('app-sidebar-collapsed') ? '1' : '0');
+        syncState();
+    });
+
+    const openPeek = () => {
+        if (document.body.classList.contains('app-sidebar-collapsed')) {
+            document.body.classList.add('app-sidebar-peek');
+        }
+    };
+
+    const closePeek = () => {
+        document.body.classList.remove('app-sidebar-peek');
+    };
+
+    sidebar?.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('app-sidebar-collapsed')) {
+            return;
+        }
+
+        openPeek();
+
+        const link = event.target.closest('a.nav-link');
+        const toggleButton = event.target.closest('.app-menu-toggle');
+
+        if (link && !toggleButton) {
+            closePeek();
+        }
+    }, true);
+
+    document.addEventListener('click', (event) => {
+        if (!document.body.classList.contains('app-sidebar-peek')) {
+            return;
+        }
+
+        if (event.target.closest('.app-sidebar') || event.target.closest('[data-sidebar-toggle]')) {
+            return;
+        }
+
+        closePeek();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closePeek();
+        }
+    });
+
+    syncState();
+    toggle.dataset.sidebarToggleInitialized = '1';
+}
+
+function initCashExpenseModal() {
+    const modal = document.querySelector('[data-show-cash-expense-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+function initCashCloseModal() {
+    const modal = document.querySelector('[data-show-cash-close-modal]');
+
+    if (!modal) {
+        return;
+    }
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
 showInitialAlerts();
 disableBusinessFormAutocomplete();
 initTomSelects();
 initPurchaseForm();
 syncPointSaleWarehouse();
 initPosSaleForm();
+initDefragmentForms();
+initTransferForms();
+initStockAdjustmentForms();
 initUserDropdowns();
+initSidebarToggle();
+initCashExpenseModal();
+initCashCloseModal();
 initAdminDataTables();
 
 document.addEventListener('click', (event) => {
@@ -749,6 +1666,22 @@ document.addEventListener('change', (event) => {
 document.addEventListener('submit', (event) => {
     const ajaxForm = event.target.closest('[data-ajax-form]');
     const deleteForm = event.target.closest('[data-confirm-delete]');
+    const voidPurchaseForm = event.target.closest('[data-confirm-void-purchase]');
+    const voidSaleForm = event.target.closest('[data-confirm-void-sale]');
+
+    if (voidPurchaseForm) {
+        event.preventDefault();
+        confirmVoidPurchase(voidPurchaseForm);
+
+        return;
+    }
+
+    if (voidSaleForm) {
+        event.preventDefault();
+        confirmVoidSale(voidSaleForm);
+
+        return;
+    }
 
     if (ajaxForm) {
         event.preventDefault();

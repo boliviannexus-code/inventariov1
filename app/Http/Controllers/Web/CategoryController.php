@@ -81,6 +81,8 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, Category $category): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $category);
+
         $category = $this->categories->update($category, $request->validated());
 
         if ($request->ajax()) {

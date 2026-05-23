@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Category;
 use App\Repositories\CategoryRepository;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +27,7 @@ class CategoryService
 
     public function create(array $data): Category
     {
-        $category = $this->categories->create($this->normalize($data, true));
+        $category = $this->categories->create(CompanyContext::applyToData($this->normalize($data, true)));
 
         Log::info('Category created', ['category_id' => $category->id]);
 
@@ -35,7 +36,7 @@ class CategoryService
 
     public function update(Category $category, array $data): Category
     {
-        $category = $this->categories->update($category, $this->normalize($data));
+        $category = $this->categories->update($category, CompanyContext::applyToData($this->normalize($data)));
 
         Log::info('Category updated', ['category_id' => $category->id]);
 

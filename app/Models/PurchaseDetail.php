@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class PurchaseDetail extends Model
+class PurchaseDetail extends Model implements Auditable
 {
+    use AuditsCompanyChanges;
+
     protected $fillable = [
         'purchase_id',
         'product_id',

@@ -85,7 +85,7 @@
                             <th>Presentacion</th>
                             <th class="text-end">Calculo unitario</th>
                             <th class="text-end">Cantidad</th>
-                            <th class="text-end">Precio unitario</th>
+                            <th class="text-end">Precio presentacion</th>
                             <th class="text-end">Subtotal</th>
                             <th class="text-end">Accion</th>
                         </tr>

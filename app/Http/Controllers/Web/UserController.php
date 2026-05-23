@@ -36,7 +36,10 @@ class UserController extends Controller
     {
         $this->authorize('create', User::class);
 
-        $data = ['roles' => $this->userRepository->rolesForSelect()];
+        $data = [
+            'companies' => $this->userRepository->companiesForSelect(),
+            'roles' => $this->userRepository->rolesForSelect(),
+        ];
 
         if ($request->ajax()) {
             return view('users.partials.create-form', $data);
@@ -64,7 +67,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load('roles');
+        $user->load(['company', 'roles']);
 
         if ($request->ajax()) {
             return view('users.partials.show', compact('user'));
@@ -79,6 +82,7 @@ class UserController extends Controller
 
         $data = [
             'user' => $user->load('roles'),
+            'companies' => $this->userRepository->companiesForSelect(),
             'roles' => $this->userRepository->rolesForSelect(),
         ];
 
@@ -118,6 +122,8 @@ class UserController extends Controller
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $user);
+
         $user = $this->users->update($user, $request->validated());
 
         if ($request->ajax()) {

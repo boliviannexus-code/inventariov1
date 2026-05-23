@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
 use Database\Factories\PointOfSaleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,18 +10,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class PointOfSale extends Model
+class PointOfSale extends Model implements Auditable
 {
     /** @use HasFactory<PointOfSaleFactory> */
-    use HasFactory, SoftDeletes;
+    use AuditsCompanyChanges, HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'company_id',
         'branch_id',
         'warehouse_id',
         'name',
         'code',
+        'receipt_prefix',
         'sequence_number',
+        'receipt_next_number',
+        'receipt_digits',
         'is_active',
     ];
 
@@ -28,6 +34,8 @@ class PointOfSale extends Model
     {
         return [
             'sequence_number' => 'integer',
+            'receipt_next_number' => 'integer',
+            'receipt_digits' => 'integer',
             'is_active' => 'boolean',
         ];
     }
@@ -35,6 +43,11 @@ class PointOfSale extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function warehouse(): BelongsTo

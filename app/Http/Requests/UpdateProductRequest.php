@@ -4,23 +4,25 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Support\CompanyContext;
 
 class UpdateProductRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('products.update') ?? false;
+        return ($this->user()?->can('products.update') ?? false) && CompanyContext::canOperate($this->user());
     }
 
     public function rules(): array
     {
         $productId = $this->route('product')?->id ?? $this->route('product');
+        $companyId = CompanyContext::id($this->user());
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'barcode' => ['nullable', 'string', 'max:100', Rule::unique('products', 'barcode')->ignore($productId)],
-            'category_id' => ['required', 'exists:categories,id'],
-            'measurement_unit_id' => ['required', 'exists:measurement_units,id'],
+            'barcode' => ['nullable', 'string', 'max:100', Rule::unique('products', 'barcode')->where(fn ($query) => $query->where('company_id', $companyId))->ignore($productId)],
+            'category_id' => ['required', Rule::exists('categories', 'id')->when($companyId, fn ($rule) => $rule->where('company_id', $companyId))],
+            'measurement_unit_id' => ['required', Rule::exists('measurement_units', 'id')->when($companyId, fn ($rule) => $rule->where('company_id', $companyId))],
             'description' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'remove_image' => ['sometimes', 'boolean'],

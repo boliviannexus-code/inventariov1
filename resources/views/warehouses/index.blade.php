@@ -17,6 +17,7 @@
                 <tr>
                     <th>Codigo</th>
                     <th>Nombre</th>
+                    <th>Empresa</th>
                     <th>Sucursal</th>
                     <th>Estado</th>
                     <th class="text-end">Acciones</th>
@@ -27,6 +28,7 @@
                     <tr>
                         <td><span class="badge text-bg-light">{{ $warehouse->code }}</span></td>
                         <td>{{ $warehouse->name }}</td>
+                        <td>{{ $warehouse->company?->name ?? 'Sin empresa' }}</td>
                         <td>{{ $warehouse->branch?->name ?? '-' }}</td>
                         <td><span class="badge text-bg-{{ $warehouse->is_active ? 'success' : 'secondary' }}">{{ $warehouse->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                         <td class="text-end">
@@ -44,7 +46,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="5" message="No hay almacenes registrados." />
+                    <x-ui.empty-row colspan="6" message="No hay almacenes registrados." />
                 @endforelse
             </tbody>
         </table>

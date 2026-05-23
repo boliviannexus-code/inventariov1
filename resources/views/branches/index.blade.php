@@ -17,6 +17,7 @@
                 <tr>
                     <th>Codigo</th>
                     <th>Nombre</th>
+                    <th>Empresa</th>
                     <th>Telefono</th>
                     <th>Almacenes</th>
                     <th>Estado</th>
@@ -28,6 +29,7 @@
                     <tr>
                         <td><span class="badge text-bg-light">{{ $branch->code }}</span></td>
                         <td>{{ $branch->name }}</td>
+                        <td>{{ $branch->company?->name ?? 'Sin empresa' }}</td>
                         <td>{{ $branch->phone ?: '-' }}</td>
                         <td>{{ $branch->warehouses_count }}</td>
                         <td><span class="badge text-bg-{{ $branch->is_active ? 'success' : 'secondary' }}">{{ $branch->is_active ? 'Activo' : 'Inactivo' }}</span></td>
@@ -46,7 +48,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="6" message="No hay sucursales registradas." />
+                    <x-ui.empty-row colspan="7" message="No hay sucursales registradas." />
                 @endforelse
             </tbody>
         </table>

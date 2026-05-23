@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Branch;
 use App\Repositories\BranchRepository;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,8 @@ class BranchService
 
     public function create(array $data): Branch
     {
+        $data = CompanyContext::applyToData($data);
+
         $branch = $this->branches->create($this->normalize($data, true));
 
         Log::info('Branch created', ['branch_id' => $branch->id]);
@@ -36,7 +39,10 @@ class BranchService
 
     public function update(Branch $branch, array $data): Branch
     {
+        $data = CompanyContext::applyToData($data);
+
         $branch = $this->branches->update($branch, $this->normalize($data));
+        $this->syncChildCompany($branch);
 
         Log::info('Branch updated', ['branch_id' => $branch->id]);
 
@@ -66,5 +72,27 @@ class BranchService
         }
 
         return $data;
+    }
+
+    private function syncChildCompany(Branch $branch): void
+    {
+        $branch->warehouses()->update(['company_id' => $branch->company_id]);
+        $branch->pointOfSales()->update(['company_id' => $branch->company_id]);
+
+        if ($branch->company_id === null) {
+            return;
+        }
+
+        $branch->pointOfSales()
+            ->with('users')
+            ->get()
+            ->each(function ($pointOfSale) use ($branch): void {
+                $validUserIds = $pointOfSale->users
+                    ->where('company_id', $branch->company_id)
+                    ->pluck('id')
+                    ->all();
+
+                $pointOfSale->users()->sync($validUserIds);
+            });
     }
 }

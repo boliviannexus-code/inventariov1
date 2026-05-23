@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\BranchService;
 use App\Services\PointOfSaleService;
 use App\Services\WarehouseService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,7 +67,7 @@ class PointOfSaleController extends Controller
     {
         $this->authorize('view', $pointOfSale);
 
-        $pointOfSale->load(['branch', 'warehouse', 'users']);
+        $pointOfSale->load(['branch', 'warehouse', 'company', 'users']);
 
         if ($request->ajax()) {
             return view('point-of-sales.partials.show', compact('pointOfSale'));
@@ -90,6 +91,8 @@ class PointOfSaleController extends Controller
 
     public function update(UpdatePointOfSaleRequest $request, PointOfSale $pointOfSale): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $pointOfSale);
+
         $pointOfSale = $this->pointOfSales->update($pointOfSale, $request->validated());
 
         if ($request->ajax()) {
@@ -122,6 +125,7 @@ class PointOfSaleController extends Controller
             'branches' => $this->branches->active(),
             'users' => User::query()
                 ->where('is_active', true)
+                ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']),
             'warehouses' => $this->warehouses->active()

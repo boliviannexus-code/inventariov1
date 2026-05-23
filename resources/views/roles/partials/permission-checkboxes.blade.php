@@ -7,7 +7,7 @@
         <div class="accordion-item">
             <h2 class="accordion-header">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#permissions-{{ str($module)->slug() }}">
-                    {{ $module }}
+                    {{ permission_module_label($module) }}
                 </button>
             </h2>
             <div class="accordion-collapse collapse" id="permissions-{{ str($module)->slug() }}" data-bs-parent="#permissionsAccordion">
@@ -17,7 +17,7 @@
                             <div class="col-md-6">
                                 <div class="form-check border rounded p-2 ps-5 bg-light">
                                     <input class="form-check-input" id="permission-{{ $permission->id }}" name="permissions[]" type="checkbox" value="{{ $permission->name }}" @checked($selectedPermissions->contains($permission->name))>
-                                    <label class="form-check-label" for="permission-{{ $permission->id }}">{{ $permission->name }}</label>
+                                    <label class="form-check-label" for="permission-{{ $permission->id }}">{{ permission_label($permission->name) }}</label>
                                 </div>
                             </div>
                         @endforeach

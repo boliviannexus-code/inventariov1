@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class SupplierController extends Controller
 
     public function store(StoreSupplierRequest $request): JsonResponse|RedirectResponse
     {
-        $supplier = Supplier::query()->create($request->validated());
+        $supplier = Supplier::query()->create(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -53,6 +54,7 @@ class SupplierController extends Controller
     public function show(Request $request, Supplier $supplier): View
     {
         abort_unless(auth()->user()?->can('suppliers.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($supplier->company_id, $request->user()), 403);
 
         if ($request->ajax()) {
             return view('suppliers.partials.show', compact('supplier'));
@@ -64,6 +66,7 @@ class SupplierController extends Controller
     public function edit(Request $request, Supplier $supplier): View
     {
         abort_unless(auth()->user()?->can('suppliers.update'), 403);
+        abort_unless(CompanyContext::belongsToUser($supplier->company_id, $request->user()), 403);
 
         if ($request->ajax()) {
             return view('suppliers.partials.edit-form', compact('supplier'));
@@ -74,7 +77,9 @@ class SupplierController extends Controller
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier): JsonResponse|RedirectResponse
     {
-        $supplier->update($request->validated());
+        abort_unless(CompanyContext::belongsToUser($supplier->company_id, $request->user()), 403);
+
+        $supplier->update(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -94,6 +99,7 @@ class SupplierController extends Controller
     public function destroy(Supplier $supplier): RedirectResponse
     {
         abort_unless(auth()->user()?->can('suppliers.delete'), 403);
+        abort_unless(CompanyContext::belongsToUser($supplier->company_id, auth()->user()), 403);
 
         $supplier->delete();
 

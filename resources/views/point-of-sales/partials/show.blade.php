@@ -1,8 +1,14 @@
 <dl class="row mb-0">
     <dt class="col-sm-4">Codigo</dt>
     <dd class="col-sm-8">{{ $pointOfSale->code }}</dd>
+    <dt class="col-sm-4">Comprobante</dt>
+    <dd class="col-sm-8">
+        {{ $pointOfSale->receipt_prefix ?: $pointOfSale->code }}-{{ str_pad((string) $pointOfSale->receipt_next_number, (int) ($pointOfSale->receipt_digits ?: 6), '0', STR_PAD_LEFT) }}
+    </dd>
     <dt class="col-sm-4">Nombre</dt>
     <dd class="col-sm-8">{{ $pointOfSale->name }}</dd>
+    <dt class="col-sm-4">Empresa</dt>
+    <dd class="col-sm-8">{{ $pointOfSale->company?->name ?? 'Sin empresa' }}</dd>
     <dt class="col-sm-4">Sucursal</dt>
     <dd class="col-sm-8">{{ $pointOfSale->branch?->name ?? '-' }}</dd>
     <dt class="col-sm-4">Almacen vinculado</dt>

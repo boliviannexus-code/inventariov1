@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Warehouse;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -11,7 +12,8 @@ class WarehouseRepository
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return Warehouse::query()
-            ->with('branch')
+            ->with(['branch', 'company'])
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->latest()
             ->paginate($perPage);
     }
@@ -19,7 +21,8 @@ class WarehouseRepository
     public function active(): Collection
     {
         return Warehouse::query()
-            ->with('branch')
+            ->with(['branch', 'company'])
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->where('is_active', true)
             ->whereHas('branch', fn ($query) => $query->where('is_active', true))
             ->orderBy('name')

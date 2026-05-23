@@ -12,6 +12,7 @@ class PermissionResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'display_name' => permission_label($this->name),
             'guard_name' => $this->guard_name,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

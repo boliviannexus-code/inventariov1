@@ -9,6 +9,11 @@
     @stack('styles')
 </head>
 <body class="layout-fluid">
+<script>
+    if (localStorage.getItem('app-sidebar-collapsed') === '1') {
+        document.body.classList.add('app-sidebar-collapsed');
+    }
+</script>
 <div class="page">
     @include('layouts.partials.sidebar')
 

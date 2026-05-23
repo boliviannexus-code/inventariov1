@@ -31,6 +31,10 @@ class RolePermissionSeeder extends Seeder
             'permissions.create',
             'permissions.edit',
             'permissions.delete',
+            'companies.view',
+            'companies.create',
+            'companies.update',
+            'companies.delete',
             'branches.view',
             'branches.create',
             'branches.update',
@@ -65,14 +69,21 @@ class RolePermissionSeeder extends Seeder
             'measurement-units.create',
             'measurement-units.update',
             'measurement-units.delete',
+            'payment-methods.view',
+            'payment-methods.create',
+            'payment-methods.update',
+            'payment-methods.delete',
             'inventory.view',
             'inventory.movements',
             'purchases.view',
             'purchases.create',
+            'purchases.void',
             'sales.view',
             'sales.create',
+            'sales.void',
             'pos.access',
             'reports.view',
+            'audits.view',
             'roles.manage',
             'users.manage',
         ];
@@ -89,6 +100,9 @@ class RolePermissionSeeder extends Seeder
         Role::findOrCreate('manager')->syncPermissions([
             'dashboard.view',
             'users.view',
+            'companies.view',
+            'companies.create',
+            'companies.update',
             'branches.view',
             'branches.create',
             'branches.update',
@@ -113,15 +127,21 @@ class RolePermissionSeeder extends Seeder
             'measurement-units.view',
             'measurement-units.create',
             'measurement-units.update',
+            'payment-methods.view',
+            'payment-methods.create',
+            'payment-methods.update',
             'inventory.view',
             'purchases.view',
             'purchases.create',
+            'purchases.void',
             'sales.view',
+            'sales.void',
             'reports.view',
         ]);
 
         Role::findOrCreate('cashier')->syncPermissions([
             'dashboard.view',
+            'companies.view',
             'branches.view',
             'warehouses.view',
             'point-of-sales.view',
@@ -129,6 +149,7 @@ class RolePermissionSeeder extends Seeder
             'product-presentations.view',
             'categories.view',
             'measurement-units.view',
+            'payment-methods.view',
             'sales.view',
             'sales.create',
             'pos.access',
@@ -136,6 +157,7 @@ class RolePermissionSeeder extends Seeder
 
         Role::findOrCreate('warehouse')->syncPermissions([
             'dashboard.view',
+            'companies.view',
             'branches.view',
             'warehouses.view',
             'warehouses.create',
@@ -161,6 +183,7 @@ class RolePermissionSeeder extends Seeder
 
         Role::findOrCreate('inventory_manager')->syncPermissions([
             'dashboard.view',
+            'companies.view',
             'branches.view',
             'branches.create',
             'branches.update',
@@ -192,6 +215,7 @@ class RolePermissionSeeder extends Seeder
 
         Role::findOrCreate('viewer')->syncPermissions([
             'dashboard.view',
+            'companies.view',
             'branches.view',
             'warehouses.view',
             'point-of-sales.view',

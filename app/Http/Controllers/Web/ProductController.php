@@ -9,6 +9,7 @@ use App\Models\MeasurementUnit;
 use App\Models\Product;
 use App\Services\CategoryService;
 use App\Services\ProductService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,12 +73,12 @@ class ProductController extends Controller
 
         if ($request->ajax()) {
             return view('products.partials.show', [
-                'product' => $product->load(['category', 'measurementUnit']),
+                'product' => $product->load(['category', 'measurementUnit', 'company']),
             ]);
         }
 
         return view('products.show', [
-            'product' => $product->load(['category', 'measurementUnit']),
+            'product' => $product->load(['category', 'measurementUnit', 'company']),
         ]);
     }
 
@@ -102,6 +103,8 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $product);
+
         $product = $this->products->update($product, $request->validated());
 
         if ($request->ajax()) {
@@ -133,6 +136,7 @@ class ProductController extends Controller
     private function activeMeasurementUnits()
     {
         return MeasurementUnit::query()
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'abbreviation']);

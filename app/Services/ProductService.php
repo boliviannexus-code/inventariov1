@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Repositories\ProductRepository;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -31,7 +32,7 @@ class ProductService
         $image = $data['image'] ?? null;
         unset($data['image'], $data['remove_image']);
 
-        $product = $this->products->create($this->normalize($data, true));
+        $product = $this->products->create(CompanyContext::applyToData($this->normalize($data, true)));
 
         if ($image instanceof UploadedFile) {
             $this->attachProductImage($product, $image);
@@ -58,7 +59,7 @@ class ProductService
             $data['image_path'] = null;
         }
 
-        $product = $this->products->update($product, $this->normalize($data));
+        $product = $this->products->update($product, CompanyContext::applyToData($this->normalize($data)));
 
         Log::info('Product updated', ['product_id' => $product->id]);
 

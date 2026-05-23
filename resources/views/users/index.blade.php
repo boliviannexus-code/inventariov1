@@ -24,6 +24,7 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Email</th>
+                    <th>Empresa</th>
                     <th>Roles</th>
                     <th>Estado</th>
                     <th>Creado</th>
@@ -35,9 +36,10 @@
                     <tr class="{{ $user->trashed() ? 'table-light text-body-secondary' : '' }}">
                         <td>{{ $user->name }}</td>
                         <td>{{ $user->email }}</td>
+                        <td>{{ $user->company?->name ?? 'Sin empresa' }}</td>
                         <td>
                             @forelse ($user->roles as $role)
-                                <span class="badge text-bg-primary">{{ $role->name }}</span>
+                                <span class="badge text-bg-primary">{{ role_label($role->name) }}</span>
                             @empty
                                 <span class="text-body-secondary">Sin roles</span>
                             @endforelse
@@ -92,7 +94,7 @@
                         </td>
                     </tr>
                 @empty
-                    <x-ui.empty-row colspan="6" message="No hay usuarios registrados." />
+                    <x-ui.empty-row colspan="7" message="No hay usuarios registrados." />
                 @endforelse
             </tbody>
         </table>

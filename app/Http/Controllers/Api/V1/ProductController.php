@@ -42,6 +42,8 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
+        $this->authorize('update', $product);
+
         $product = $this->products->update($product, $request->validated());
 
         return $this->successResponse(ProductResource::make($product), 'Producto actualizado correctamente.');

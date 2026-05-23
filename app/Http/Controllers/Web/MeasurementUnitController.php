@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMeasurementUnitRequest;
 use App\Http\Requests\UpdateMeasurementUnitRequest;
 use App\Models\MeasurementUnit;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class MeasurementUnitController extends Controller
 
     public function store(StoreMeasurementUnitRequest $request): JsonResponse|RedirectResponse
     {
-        $unit = MeasurementUnit::query()->create($request->validated());
+        $unit = MeasurementUnit::query()->create(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -49,6 +50,7 @@ class MeasurementUnitController extends Controller
     public function show(Request $request, MeasurementUnit $measurementUnit): View
     {
         abort_unless(auth()->user()?->can('measurement-units.view'), 403);
+        abort_unless(CompanyContext::belongsToUser($measurementUnit->company_id, $request->user()), 403);
 
         if ($request->ajax()) {
             return view('measurement-units.partials.show', compact('measurementUnit'));
@@ -60,6 +62,7 @@ class MeasurementUnitController extends Controller
     public function edit(Request $request, MeasurementUnit $measurementUnit): View
     {
         abort_unless(auth()->user()?->can('measurement-units.update'), 403);
+        abort_unless(CompanyContext::belongsToUser($measurementUnit->company_id, $request->user()), 403);
 
         if ($request->ajax()) {
             return view('measurement-units.partials.edit-form', compact('measurementUnit'));
@@ -70,7 +73,9 @@ class MeasurementUnitController extends Controller
 
     public function update(UpdateMeasurementUnitRequest $request, MeasurementUnit $measurementUnit): JsonResponse|RedirectResponse
     {
-        $measurementUnit->update($request->validated());
+        abort_unless(CompanyContext::belongsToUser($measurementUnit->company_id, $request->user()), 403);
+
+        $measurementUnit->update(CompanyContext::applyToData($request->validated(), $request->user()));
 
         if ($request->ajax()) {
             return response()->json([
@@ -86,6 +91,7 @@ class MeasurementUnitController extends Controller
     public function destroy(MeasurementUnit $measurementUnit): RedirectResponse
     {
         abort_unless(auth()->user()?->can('measurement-units.delete'), 403);
+        abort_unless(CompanyContext::belongsToUser($measurementUnit->company_id, auth()->user()), 403);
 
         abort_if($measurementUnit->products()->exists(), 422, 'No se puede eliminar una unidad con productos asociados.');
 

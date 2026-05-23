@@ -3,11 +3,15 @@
 namespace App\Models;
 
 use App\Enums\InventoryMovementType;
+use App\Models\Concerns\AuditsCompanyChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class InventoryMovement extends Model
+class InventoryMovement extends Model implements Auditable
 {
+    use AuditsCompanyChanges;
+
     protected $fillable = [
         'product_id',
         'presentation_id',

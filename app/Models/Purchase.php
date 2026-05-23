@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AuditsCompanyChanges;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Purchase extends Model
+class Purchase extends Model implements Auditable
 {
-    use HasFactory, SoftDeletes;
+    use AuditsCompanyChanges, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'supplier_id',

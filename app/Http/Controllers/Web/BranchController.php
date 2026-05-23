@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBranchRequest;
 use App\Http\Requests\UpdateBranchRequest;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Services\BranchService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,11 +33,13 @@ class BranchController extends Controller
     {
         $this->authorize('create', Branch::class);
 
+        $data = ['companies' => $this->companiesForForm($request)];
+
         if ($request->ajax()) {
-            return view('branches.partials.create-form');
+            return view('branches.partials.create-form', $data);
         }
 
-        return view('branches.create');
+        return view('branches.create', $data);
     }
 
     public function store(StoreBranchRequest $request): JsonResponse|RedirectResponse
@@ -61,7 +65,7 @@ class BranchController extends Controller
     {
         $this->authorize('view', $branch);
 
-        $branch->loadCount('warehouses');
+        $branch->load('company')->loadCount('warehouses');
 
         if ($request->ajax()) {
             return view('branches.partials.show', compact('branch'));
@@ -75,14 +79,22 @@ class BranchController extends Controller
         $this->authorize('update', $branch);
 
         if ($request->ajax()) {
-            return view('branches.partials.edit-form', compact('branch'));
+            return view('branches.partials.edit-form', [
+                'branch' => $branch,
+                'companies' => $this->companiesForForm($request),
+            ]);
         }
 
-        return view('branches.edit', compact('branch'));
+        return view('branches.edit', [
+            'branch' => $branch,
+            'companies' => $this->companiesForForm($request),
+        ]);
     }
 
     public function update(UpdateBranchRequest $request, Branch $branch): JsonResponse|RedirectResponse
     {
+        $this->authorize('update', $branch);
+
         $branch = $this->branches->update($branch, $request->validated());
 
         if ($request->ajax()) {
@@ -109,5 +121,20 @@ class BranchController extends Controller
         return redirect()
             ->route('branches.index')
             ->with('success', 'Sucursal eliminada correctamente.');
+    }
+
+    private function companiesForForm(Request $request)
+    {
+        $companyId = CompanyContext::id($request->user());
+
+        if ($companyId !== null) {
+            return Company::query()->whereKey($companyId)->get(['id', 'name']);
+        }
+
+        if (! CompanyContext::isGlobalAdmin($request->user())) {
+            return Company::query()->whereRaw('1 = 0')->get(['id', 'name']);
+        }
+
+        return Company::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']);
     }
 }

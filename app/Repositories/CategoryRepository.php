@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Category;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -11,6 +12,7 @@ class CategoryRepository
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
         return Category::query()
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->latest()
             ->paginate($perPage);
     }
@@ -18,6 +20,7 @@ class CategoryRepository
     public function active(): Collection
     {
         return Category::query()
+            ->when(CompanyContext::id(), fn ($query, $companyId) => $query->where('company_id', $companyId))
             ->where('is_active', true)
             ->orderBy('name')
             ->get();
